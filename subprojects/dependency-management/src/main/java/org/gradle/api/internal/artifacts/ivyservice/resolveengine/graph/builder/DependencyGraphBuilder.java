@@ -69,6 +69,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -93,6 +94,9 @@ public class DependencyGraphBuilder {
     private final VersionSelectorScheme versionSelectorScheme;
     private final Comparator<Version> versionComparator;
     private final VersionParser versionParser;
+
+    final static Spec<EdgeState> ENDORSE_STRICT_VERSIONS_DEPENDENCY_SPEC = dependencyState -> dependencyState.getDependencyState().getDependency().isEndorsingStrictVersions();
+    final static Spec<EdgeState> NOT_ENDORSE_STRICT_VERSIONS_DEPENDENCY_SPEC = dependencyState -> !dependencyState.getDependencyState().getDependency().isEndorsingStrictVersions();
 
     public DependencyGraphBuilder(DependencyToComponentIdResolver componentIdResolver,
                                   ComponentMetaDataResolver componentMetaDataResolver,
@@ -135,7 +139,7 @@ public class DependencyGraphBuilder {
         moduleResolver.resolve(resolveContext, rootModule);
 
         int graphSize = estimateSize(resolveContext);
-        final ResolveState resolveState = new ResolveState(idGenerator, rootModule, resolveContext.getName(), idResolver, metaDataResolver, edgeFilter, attributesSchema, moduleExclusions, moduleReplacementsData, componentSelectorConverter, attributesFactory, dependencySubstitutionApplicator, versionSelectorScheme, versionComparator, versionParser, moduleConflictHandler.getResolver(), graphSize);
+        final ResolveState resolveState = new ResolveState(idGenerator, rootModule, resolveContext.getName(), idResolver, metaDataResolver, edgeFilter, attributesSchema, moduleExclusions, componentSelectorConverter, attributesFactory, dependencySubstitutionApplicator, versionSelectorScheme, versionComparator, versionParser, moduleConflictHandler.getResolver(), graphSize);
 
         Map<ModuleVersionIdentifier, ComponentIdentifier> componentIdentifierCache = Maps.newHashMapWithExpectedSize(graphSize/2);
         traverseGraph(resolveState, componentIdentifierCache);
@@ -177,7 +181,9 @@ public class DependencyGraphBuilder {
                 // Initialize and collect any new outgoing edges of this node
                 dependencies.clear();
                 node.visitOutgoingDependencies(dependencies);
-                resolveEdges(node, dependencies, resolveState, componentIdentifierCache);
+                boolean edgeWasProcessed = resolveEdges(node, dependencies, ENDORSE_STRICT_VERSIONS_DEPENDENCY_SPEC, false, resolveState, componentIdentifierCache);
+                node.collectEndorsedStrictVersions(dependencies);
+                resolveEdges(node, dependencies, NOT_ENDORSE_STRICT_VERSIONS_DEPENDENCY_SPEC, edgeWasProcessed, resolveState, componentIdentifierCache);
             } else {
                 // We have some batched up conflicts. Resolve the first, and continue traversing the graph
                 if (moduleConflictHandler.hasConflicts()) {
@@ -229,21 +235,34 @@ public class DependencyGraphBuilder {
         });
     }
 
-    private void resolveEdges(final NodeState node,
+    private boolean resolveEdges(final NodeState node,
                               final List<EdgeState> dependencies,
+                              final Spec<EdgeState> dependencyFilter,
+                              final boolean recomputeSelectors,
                               final ResolveState resolveState,
                               final Map<ModuleVersionIdentifier, ComponentIdentifier> componentIdentifierCache) {
         if (dependencies.isEmpty()) {
-            return;
+            return false;
         }
-        performSelectionSerially(dependencies, resolveState);
-        maybeDownloadMetadataInParallel(node, componentIdentifierCache, dependencies);
-        attachToTargetRevisionsSerially(dependencies);
+        if (performSelectionSerially(dependencies, dependencyFilter, resolveState, recomputeSelectors)) {
+            maybeDownloadMetadataInParallel(node, componentIdentifierCache, dependencies, dependencyFilter);
+            attachToTargetRevisionsSerially(dependencies, dependencyFilter);
+            return true;
+        } else {
+            return false;
+        }
 
     }
 
-    private void performSelectionSerially(List<EdgeState> dependencies, ResolveState resolveState) {
+    private boolean performSelectionSerially(List<EdgeState> dependencies, Spec<EdgeState> dependencyFilter, ResolveState resolveState, boolean recomputeSelectors) {
+        boolean processed = false;
         for (EdgeState dependency : dependencies) {
+            if (!dependencyFilter.isSatisfiedBy(dependency)) {
+                continue;
+            }
+            if (recomputeSelectors) {
+                dependency.computeSelector();
+            }
             SelectorState selector = dependency.getSelector();
             ModuleResolveState module = selector.getTargetModule();
 
@@ -253,12 +272,14 @@ public class DependencyGraphBuilder {
             }
 
             module.addUnattachedDependency(dependency);
+            processed = true;
         }
+        return processed;
     }
 
     /**
      * Attempts to resolve a target `ComponentState` for the given dependency.
-     * On successful resolve, a `ComponentState` is constructed for the identifier, recorded as {@link ModuleResolveState#selected},
+     * On successful resolve, a `ComponentState` is constructed for the identifier, recorded as {@link ModuleResolveState#getSelected()},
      * and added to the graph.
      * On resolve failure, the failure is recorded and no `ComponentState` is selected.
      */
@@ -296,9 +317,12 @@ public class DependencyGraphBuilder {
      * Prepares the resolution of edges, either serially or concurrently.
      * It uses a simple heuristic to determine if we should perform concurrent resolution, based on the the number of edges, and whether they have unresolved metadata.
      */
-    private void maybeDownloadMetadataInParallel(NodeState node, Map<ModuleVersionIdentifier, ComponentIdentifier> componentIdentifierCache, List<EdgeState> dependencies) {
+    private void maybeDownloadMetadataInParallel(NodeState node, Map<ModuleVersionIdentifier, ComponentIdentifier> componentIdentifierCache, List<EdgeState> dependencies, Spec<EdgeState> dependencyFilter) {
         List<ComponentState> requiringDownload = null;
         for (EdgeState dependency : dependencies) {
+            if (!dependencyFilter.isSatisfiedBy(dependency)) {
+                continue;
+            }
             ComponentState targetComponent = dependency.getTargetComponent();
             if (targetComponent != null && targetComponent.isSelected() && !targetComponent.alreadyResolved()) {
                 if (!metaDataResolver.isFetchingMetadataCheap(toComponentId(targetComponent.getId(), componentIdentifierCache))) {
@@ -334,12 +358,14 @@ public class DependencyGraphBuilder {
         return identifier;
     }
 
-    private void attachToTargetRevisionsSerially(List<EdgeState> dependencies) {
+    private void attachToTargetRevisionsSerially(List<EdgeState> dependencies, Spec<EdgeState> dependencyFilter) {
         // the following only needs to be done serially to preserve ordering of dependencies in the graph: we have visited the edges
         // but we still didn't add the result to the queue. Doing it from resolve threads would result in non-reproducible graphs, where
         // edges could be added in different order. To avoid this, the addition of new edges is done serially.
         for (EdgeState dependency : dependencies) {
-            dependency.attachToTargetConfigurations();
+            if (dependencyFilter.isSatisfiedBy(dependency)) {
+                dependency.attachToTargetConfigurations();
+            }
         }
     }
 
@@ -405,7 +431,7 @@ public class DependencyGraphBuilder {
             Object v1 = firstAttributes.getAttribute(attribute);
             Object v2 = secondAttributes.getAttribute(attribute);
             // for all commons attributes, make sure they are compatible with each other
-            if (!compatible(rule, v1, v2) || !compatible(rule, v2, v1)) {
+            if (!compatible(rule, v1, v2) && !compatible(rule, v2, v1)) {
                 incompatibleNodes.add(first);
                 incompatibleNodes.add(second);
             }
@@ -491,7 +517,7 @@ public class DependencyGraphBuilder {
         }
 
         // Collect the components to sort in consumer-first order
-        List<ComponentState> queue = Lists.newArrayListWithExpectedSize(resolveState.getNodeCount());
+        LinkedList<ComponentState> queue = Lists.newLinkedList();
         for (ModuleResolveState module : resolveState.getModules()) {
             if (module.getSelected() != null && !module.isVirtualPlatform()) {
                 queue.add(module.getSelected());
@@ -500,7 +526,7 @@ public class DependencyGraphBuilder {
 
         // Visit the edges after sorting the components in consumer-first order
         while (!queue.isEmpty()) {
-            ComponentState component = queue.get(0);
+            ComponentState component = queue.peekFirst();
             if (component.getVisitState() == VisitState.NotSeen) {
                 component.setVisitState(VisitState.Visiting);
                 int pos = 0;
@@ -519,7 +545,7 @@ public class DependencyGraphBuilder {
                 if (pos == 0) {
                     // have visited all consumers, so visit this node
                     component.setVisitState(VisitState.Visited);
-                    queue.remove(0);
+                    queue.removeFirst();
                     for (NodeState node : component.getNodes()) {
                         if (node.isSelected()) {
                             visitor.visitEdges(node);
@@ -529,7 +555,7 @@ public class DependencyGraphBuilder {
             } else if (component.getVisitState() == VisitState.Visiting) {
                 // have visited all consumers, so visit this node
                 component.setVisitState(VisitState.Visited);
-                queue.remove(0);
+                queue.removeFirst();
                 for (NodeState node : component.getNodes()) {
                     if (node.isSelected()) {
                         visitor.visitEdges(node);
@@ -537,7 +563,7 @@ public class DependencyGraphBuilder {
                 }
             } else {
                 // else, already visited previously, skip
-                queue.remove(0);
+                queue.removeFirst();
             }
         }
 

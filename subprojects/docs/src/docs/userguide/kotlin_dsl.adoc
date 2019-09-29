@@ -299,7 +299,7 @@ The IDE won't be able to help you discover the available configurations in this 
 
 ==== Project extensions and conventions
 
-Project extensions and <<sec:kotlin_dsl_about_conventions,conventions>> have both a name and a unique type, but the Kotlin DSL only needs to know the type in order to configure them.
+Project extensions and <<#sec:kotlin_dsl_about_conventions,conventions>> have both a name and a unique type, but the Kotlin DSL only needs to know the type in order to configure them.
 As the following sample shows for the `sourceSets {}` and `java {}` blocks from the original example build script, you can use the link:{kotlinDslPath}/org.gradle.kotlin.dsl/org.gradle.api.-project/configure.html[`configure<T>()`] function with the corresponding type to do that:
 
 .Project extensions and conventions
@@ -481,10 +481,10 @@ See the <<plugins#sec:plugin_management,Plugin Management>> section of the Gradl
 // [PL] It seems to me that this block of content should really be in a more generic part
 //      of the user manual as it discusses techniques that apply outside of the Kotlin DSL.
 //      In fact, it indicates missing content that this chapter should be able to link to.
-// 
+//
 // In the case of multi-project builds, this approach is similar to using a `buildscript {}` block in the root project build script to depend on third party plugins and then using `plugins {}` in your sub project build scripts to apply them.
 // The main difference is that this approach means that the root project can also benefit from the `plugins {}` block and it is more aligned with Gradle best practices.
-// 
+//
 // [PL] We should also aim to avoid temporary information in the user manual that could
 //      be out of date at any time.
 // The same approach can be used to resolve plugins from composite builds, which link:https://github.com/gradle/gradle/issues/2528[do not expose plugin markers] yet.
@@ -615,13 +615,13 @@ Kotlin DSL allows you to access extra properties and create new ones via delegat
 [source,kotlin]
 ----
 val myNewProperty by extra("initial value")  // <1>
-val myOtherNewProperty by extra { "lazy initial value" }  // <2>
+val myOtherNewProperty by extra { "calculated initial value" }  // <2>
 
 val myProperty: String by extra  // <3>
 val myNullableProperty: String? by extra  // <4>
 ----
 <1> Creates a new extra property called `myNewProperty` in the current context (the project in this case) and initializes it with the value `"initial value"`, which also determines the property's _type_
-<2> Create a new extra property whose initial value is calculated when the property is accessed
+<2> Create a new extra property whose initial value is calculated by the provided lambda
 <3> Binds an existing extra property from the current context (the project in this case) to a `myProperty` reference
 <4> Does the same as the previous line but allows the property to have a null value
 
@@ -705,14 +705,12 @@ tasks.create("myTask") {
 == The Kotlin DSL Plugin
 
 The Kotlin DSL Plugin provides a convenient way to develop Kotlin-based projects that contribute build logic.
-That includes <<organizing_gradle_projects#sec:build_sources,buildSrc projects>>, <<composite_builds#composite_builds, included builds>> and link:{guidesUrl}/designing-gradle-plugins/[Gradle plugins].
+That includes <<organizing_gradle_projects#sec:build_sources,buildSrc projects>>, <<composite_builds#, included builds>> and link:{guidesUrl}/designing-gradle-plugins/[Gradle plugins].
 
 The plugin achieves this by doing the following:
 
  * Applies the link:https://kotlinlang.org/docs/reference/using-gradle.html#targeting-the-jvm[Kotlin Plugin], which adds support for compiling Kotlin source files.
  * Adds the `kotlin-stdlib-jdk8`, `kotlin-reflect` and `gradleKotlinDsl()` dependencies to the `compileOnly` and `testImplementation` configurations, which allows you to make use of those Kotlin libraries and the Gradle API in your Kotlin code.
-+
-All three libraries and their dependencies are bundled with Gradle, so these dependencies will not result in any downloads.
  * Configures the Kotlin compiler with the same settings that are used for Kotlin DSL scripts, ensuring consistency between your build logic and those scripts.
  * Enables support for <<kotdsl:precompiled_plugins,precompiled script plugins>>.
 
@@ -730,7 +728,7 @@ include::sample[dir="kotlinDsl/kotlinDslPlugin",files="buildSrc/build.gradle.kts
 ====
 
 Be aware that the Kotlin DSL Plugin turns on experimental Kotlin compiler features.
-See the <<sec:kotlin_compiler_arguments>> section below for more information.
+See the <<#sec:kotlin_compiler_arguments>> section below for more information.
 
 By default, the plugin warns about using experimental features of the Kotlin compiler.
 You can silence the warning by setting the `experimentalWarning` property of the `kotlinDslPluginOptions` extension to `false` as follows:
@@ -866,7 +864,7 @@ In addition, the Kotlin DSL provides several ways to opt into Groovy semantics, 
 
 === Static extensions
 
-Both the Groovy and Kotlin languages support extending existing classes via link:http://groovy-lang.org/metaprogramming.html#_extension_modules[Groovy Extension modules] and link:{kotlin-reference}extensions.html[Kotlin extensions].
+Both the Groovy and Kotlin languages support extending existing classes via link:https://groovy-lang.org/metaprogramming.html#_extension_modules[Groovy Extension modules] and link:{kotlin-reference}extensions.html[Kotlin extensions].
 
 To call a Kotlin extension function from Groovy, call it as a static function, passing the receiver as the first parameter:
 
@@ -875,7 +873,7 @@ To call a Kotlin extension function from Groovy, call it as a static function, p
 include::sample[dir="kotlinDsl/interoperability/static-extensions",files="build.gradle[tags=kotlin-from-groovy]"]
 ====
 
-Kotlin extension functions are package-level functions and you can learn how to locate the name of the type declaring a given Kotlin extension in see the link:{kotlin-reference}java-to-kotlin-interop.html#package-level-functions[Package-Level Functions] section of the Kotlin reference documentation.
+Kotlin extension functions are package-level functions and you can learn how to locate the name of the type declaring a given Kotlin extension in the link:{kotlin-reference}java-to-kotlin-interop.html#package-level-functions[Package-Level Functions] section of the Kotlin reference documentation.
 
 To call a Groovy extension method from Kotlin, the same approach applies: call it as a static function passing the receiver as the first parameter.
 Here's an example:
@@ -889,7 +887,7 @@ include::sample[dir="kotlinDsl/interoperability/static-extensions",files="build.
 
 Both the Groovy and Kotlin languages support named function parameters and default arguments, although they are implemented very differently.
 Kotlin has fully-fledged support for both, as described in the Kotlin language reference under link:{kotlin-reference}functions.html#named-arguments[named arguments] and link:{kotlin-reference}functions.html#default-arguments[default arguments].
-Groovy implements link:http://groovy-lang.org/objectorientation.html#_named_arguments[named arguments] in a non-type-safe way based on a `Map<String, ?>` parameter, which means they cannot be combined with link:http://groovy-lang.org/objectorientation.html#_default_arguments[default arguments].
+Groovy implements link:https://groovy-lang.org/objectorientation.html#_named_arguments[named arguments] in a non-type-safe way based on a `Map<String, ?>` parameter, which means they cannot be combined with link:https://groovy-lang.org/objectorientation.html#_default_arguments[default arguments].
 In other words, you can only use one or the other in Groovy for any given method.
 
 ==== Calling Kotlin from Groovy
@@ -920,7 +918,7 @@ To call a Groovy function with default arguments from Kotlin, always pass values
 
 === Groovy closures from Kotlin
 
-You may sometimes have to call Groovy methods that take link:http://groovy-lang.org/closures.html[Closure] arguments from Kotlin code.
+You may sometimes have to call Groovy methods that take link:https://groovy-lang.org/closures.html[Closure] arguments from Kotlin code.
 For example, some third-party plugins written in Groovy expect closure arguments.
 
 [NOTE]
@@ -965,7 +963,7 @@ Also see the link:{kotlin-dsl-samples}groovy-interop[groovy-interop] sample.
 
 === The Kotlin DSL Groovy Builder
 
-If some plugin makes heavy use of link:http://groovy-lang.org/metaprogramming.html[Groovy metaprogramming], then using it from Kotlin or Java or any statically-compiled language can be very cumbersome.
+If some plugin makes heavy use of link:https://groovy-lang.org/metaprogramming.html[Groovy metaprogramming], then using it from Kotlin or Java or any statically-compiled language can be very cumbersome.
 
 The Kotlin DSL provides a `withGroovyBuilder {}` utility extension that attaches the Groovy metaprogramming semantics to objects of type `Any`.
 The following example demonstrates several features of the method on the object `target`:
@@ -974,7 +972,7 @@ The following example demonstrates several features of the method on the object 
 ====
 include::sample[dir="kotlinDsl/interoperability/groovy-builder",files="build.gradle.kts[tags=withGroovyBuilder]"]
 ====
-<1> The receiver is a link:http://docs.groovy-lang.org/latest/html/api/groovy/lang/GroovyObject.html[GroovyObject] and provides Kotlin helpers
+<1> The receiver is a link:https://docs.groovy-lang.org/latest/html/api/groovy/lang/GroovyObject.html[GroovyObject] and provides Kotlin helpers
 <2> The `GroovyObject` API is available
 <3> Invoke the `methodName` method, passing some parameters
 <4> Configure the `blockName` property, maps to a `Closure` taking method invocation

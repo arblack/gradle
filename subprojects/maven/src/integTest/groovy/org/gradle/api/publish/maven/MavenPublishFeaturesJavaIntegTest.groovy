@@ -45,8 +45,8 @@ class MavenPublishFeaturesJavaIntegTest extends AbstractMavenPublishFeaturesJava
             }
             
             components.java.addVariantsFromConfiguration(configurations.optionalFeatureRuntimeElements) { 
-                it.mapToMavenScope('compile')
-                it.mapToOptional()
+                mapToMavenScope('compile')
+                mapToOptional()
             }
         """
 
@@ -128,12 +128,12 @@ class MavenPublishFeaturesJavaIntegTest extends AbstractMavenPublishFeaturesJava
             }
             
             components.java.addVariantsFromConfiguration(configurations.optionalFeature1RuntimeElements) {
-                it.mapToMavenScope('compile')
-                it.mapToOptional()
+                mapToMavenScope('compile')
+                mapToOptional()
             }
             components.java.addVariantsFromConfiguration(configurations.optionalFeature2RuntimeElements) {
-                it.mapToMavenScope('compile')
-                it.mapToOptional()
+                mapToMavenScope('compile')
+                mapToOptional()
             }
         """
 
@@ -195,8 +195,8 @@ class MavenPublishFeaturesJavaIntegTest extends AbstractMavenPublishFeaturesJava
             }
             
             components.java.addVariantsFromConfiguration(configurations.optionalFeatureRuntimeElements) {
-                it.mapToMavenScope('compile')
-                it.mapToOptional()
+                mapToMavenScope('compile')
+                mapToOptional()
             }
             
             artifacts {     
@@ -298,8 +298,8 @@ class MavenPublishFeaturesJavaIntegTest extends AbstractMavenPublishFeaturesJava
             }
             
             components.java.addVariantsFromConfiguration(configurations.optionalFeatureRuntimeElements) {
-                it.mapToMavenScope('compile')
-                it.mapToOptional()
+                mapToMavenScope('compile')
+                mapToOptional()
             }
             
             def alt = configurations.optionalFeatureRuntimeElements.outgoing.variants.create("alternate")
@@ -366,7 +366,7 @@ class MavenPublishFeaturesJavaIntegTest extends AbstractMavenPublishFeaturesJava
                     canBeResolved = false
                     canBeConsumed = true
                     attributes {
-                        attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage, Usage.JAVA_RUNTIME_JARS))
+                        attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage, Usage.JAVA_RUNTIME))
                     }
                     outgoing.capability("org:optional-feature:\${version}")
                 }
@@ -379,16 +379,16 @@ class MavenPublishFeaturesJavaIntegTest extends AbstractMavenPublishFeaturesJava
             
             components.java.addVariantsFromConfiguration(configurations.optionalFeatureRuntimeElements) {
                 if (it.configurationVariant.name != 'alternate') {
-                    it.skip()
+                    skip()
                 } else {
-                    it.mapToMavenScope('compile')
-                    it.mapToOptional()
+                    mapToMavenScope('compile')
+                    mapToOptional()
                 } 
             }
             
             def alt = configurations.optionalFeatureRuntimeElements.outgoing.variants.create("alternate")
             alt.attributes {
-                attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, 'java-runtime-jars'))
+                attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, 'java-runtime'))
             }
             def altFile = file("\${buildDir}/\${name}-\${version}-alt.jar")
             task createFile { doFirst { altFile.parentFile.mkdirs(); altFile.text = "test file" } }

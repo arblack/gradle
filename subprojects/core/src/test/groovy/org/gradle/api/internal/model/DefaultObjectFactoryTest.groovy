@@ -16,6 +16,7 @@
 
 package org.gradle.api.internal.model
 
+import org.gradle.api.internal.collections.DomainObjectCollectionFactory
 import org.gradle.api.internal.file.FileCollectionFactory
 import org.gradle.api.internal.file.FilePropertyFactory
 import org.gradle.api.internal.file.FileResolver
@@ -26,7 +27,7 @@ import spock.lang.Unroll
 
 
 class DefaultObjectFactoryTest extends Specification {
-    def factory = new DefaultObjectFactory(Stub(Instantiator), Stub(NamedObjectInstantiator), Stub(FileResolver), Stub(DirectoryFileTreeFactory), Stub(FilePropertyFactory), Stub(FileCollectionFactory))
+    def factory = new DefaultObjectFactory(Stub(Instantiator), Stub(NamedObjectInstantiator), Stub(FileResolver), Stub(DirectoryFileTreeFactory), Stub(FilePropertyFactory), Stub(FileCollectionFactory), Stub(DomainObjectCollectionFactory))
 
     def "property has no value"() {
         expect:
@@ -38,7 +39,7 @@ class DefaultObjectFactoryTest extends Specification {
 
         then:
         def e = thrown(IllegalStateException)
-        e.message == 'No value has been specified for this provider.'
+        e.message == 'No value has been specified for this property.'
     }
 
     def "cannot create property for null value"() {

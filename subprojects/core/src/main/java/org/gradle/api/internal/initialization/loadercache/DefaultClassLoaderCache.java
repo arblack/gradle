@@ -60,13 +60,13 @@ public class DefaultClassLoaderCache implements ClassLoaderCache, Stoppable, Ses
 
     @Override
     public ClassLoader get(ClassLoaderId id, ClassPath classPath, @Nullable ClassLoader parent, @Nullable FilteringClassLoader.Spec filterSpec, HashCode implementationHash) {
-        usedInThisBuild.add(id);
         if (implementationHash == null) {
             implementationHash = classpathHasher.hash(classPath);
         }
         ManagedClassLoaderSpec spec = new ManagedClassLoaderSpec(id.toString(), parent, classPath, implementationHash, filterSpec);
 
         synchronized (lock) {
+            usedInThisBuild.add(id);
             CachedClassLoader cachedLoader = byId.get(id);
             if (cachedLoader == null || !cachedLoader.is(spec)) {
                 CachedClassLoader newLoader = getAndRetainLoader(classPath, spec, id);

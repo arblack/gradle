@@ -31,6 +31,8 @@ import org.gradle.api.publish.maven.internal.publisher.MavenProjectIdentity;
 import org.gradle.internal.UncheckedException;
 import org.gradle.internal.operations.BuildOperationRef;
 import org.gradle.internal.operations.CurrentBuildOperationRef;
+import org.gradle.internal.resource.UriTextResource;
+import org.sonatype.aether.ConfigurationProperties;
 import org.sonatype.aether.RepositoryException;
 import org.sonatype.aether.RepositorySystem;
 import org.sonatype.aether.RepositorySystemSession;
@@ -64,6 +66,7 @@ abstract class AbstractMavenPublishAction implements MavenPublishAction {
 
         CurrentBuildOperationRef currentBuildOperationRef = CurrentBuildOperationRef.instance();
         BuildOperationRef currentBuildOperation = currentBuildOperationRef.get();
+        session.getConfigProperties().put(ConfigurationProperties.USER_AGENT, UriTextResource.getUserAgentString());
         session.setTransferListener(new LoggingMavenTransferListener(currentBuildOperationRef, currentBuildOperation));
 
         pomArtifact = new DefaultArtifact(projectIdentity.getGroupId().get(), projectIdentity.getArtifactId().get(), "pom", projectIdentity.getVersion().get());
@@ -74,10 +77,12 @@ abstract class AbstractMavenPublishAction implements MavenPublishAction {
         session.setLocalRepositoryManager(new SimpleLocalRepositoryManager(localMavenRepository));
     }
 
+    @Override
     public void setPomArtifact(File file) {
         pomArtifact = pomArtifact.setFile(file);
     }
 
+    @Override
     public void setMainArtifact(File file) {
         mainArtifact = mainArtifact.setFile(file);
     }
@@ -87,6 +92,7 @@ abstract class AbstractMavenPublishAction implements MavenPublishAction {
         attached.add(createTypedArtifact(type, classifier).setFile(file));
     }
 
+    @Override
     public void publish() {
         List<Artifact> artifacts = new ArrayList<Artifact>();
         if (mainArtifact.getFile() != null) {
@@ -123,9 +129,7 @@ abstract class AbstractMavenPublishAction implements MavenPublishAction {
                 }
             }
             return new DefaultPlexusContainer(new DefaultContainerConfiguration().setRealm(classRealm));
-        } catch (PlexusContainerException e) {
-            throw UncheckedException.throwAsUncheckedException(e);
-        } catch (MalformedURLException e) {
+        } catch (PlexusContainerException | MalformedURLException e) {
             throw UncheckedException.throwAsUncheckedException(e);
         }
     }

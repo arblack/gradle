@@ -15,20 +15,16 @@
  */
 package org.gradle.plugins.signing
 
-import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
 import org.gradle.plugins.signing.signatory.internal.gnupg.GnupgSignatoryProvider
 import org.gradle.plugins.signing.signatory.pgp.PgpSignatoryProvider
 import org.gradle.test.fixtures.file.TestFile
 import org.gradle.util.Requires
-import spock.lang.IgnoreIf
-import spock.lang.Unroll
 
 import static org.gradle.plugins.signing.SigningIntegrationSpec.SignMethod.GPG_CMD
 import static org.gradle.plugins.signing.SigningIntegrationSpec.SignMethod.OPEN_GPG
 
 class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
 
-    @IgnoreIf({GradleContextualExecuter.parallel})
     def "sign jar with default signatory"() {
         given:
         buildFile << """
@@ -44,7 +40,7 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signJar"
 
         then:
-        ":signJar" in nonSkippedTasks
+        executedAndNotSkipped(":signJar")
 
         and:
         file("build", "libs", "sign-1.0.jar.asc").text
@@ -53,10 +49,9 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signJar"
 
         then:
-        ":signJar" in skippedTasks
+        skipped(":signJar")
     }
 
-    @IgnoreIf({GradleContextualExecuter.parallel})
     def "sign multiple jars with default signatory"() {
         given:
         buildFile << """
@@ -73,7 +68,7 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signJar", "signJavadocJar", "signSourcesJar"
 
         then:
-        [":signJar", ":signJavadocJar", ":signSourcesJar"].every { it in nonSkippedTasks }
+        executedAndNotSkipped(":signJar", ":signJavadocJar", ":signSourcesJar")
 
         and:
         file("build", "libs", "sign-1.0.jar.asc").text
@@ -84,7 +79,7 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signJar", "signJavadocJar", "signSourcesJar"
 
         then:
-        [":signJar", ":signJavadocJar", ":signSourcesJar"].every { it in skippedTasks }
+        skipped(":signJar", ":signJavadocJar", ":signSourcesJar")
     }
 
     @Requires(adhoc = { GpgCmdFixture.getAvailableGpg() != null })
@@ -103,7 +98,7 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signJar"
 
         then:
-        ":signJar" in nonSkippedTasks
+        executedAndNotSkipped(":signJar")
 
         when:
         def newSignMethod = originalSignMethod == GPG_CMD ? OPEN_GPG : GPG_CMD
@@ -119,13 +114,13 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signJar"
 
         then:
-        ":signJar" in nonSkippedTasks
+        executedAndNotSkipped(":signJar")
 
         when:
         run "signJar"
 
         then:
-        ":signJar" in skippedTasks
+        skipped(":signJar")
     }
 
     def "out-of-date when signatureType changes"() {
@@ -142,7 +137,7 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signJar"
 
         then:
-        ":signJar" in nonSkippedTasks
+        executedAndNotSkipped(":signJar")
 
         when:
         buildFile << """
@@ -153,13 +148,13 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signJar"
 
         then:
-        ":signJar" in nonSkippedTasks
+        executedAndNotSkipped(":signJar")
 
         when:
         run "signJar"
 
         then:
-        ":signJar" in skippedTasks
+        skipped(":signJar")
     }
 
     def "out-of-date when input file changes"() {
@@ -180,7 +175,7 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signCustomFile"
 
         then:
-        ":signCustomFile" in nonSkippedTasks
+        executedAndNotSkipped(":signCustomFile")
         file("input.txt.asc").exists()
 
         when:
@@ -188,13 +183,13 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signCustomFile"
 
         then:
-        ":signCustomFile" in nonSkippedTasks
+        executedAndNotSkipped(":signCustomFile")
 
         when:
         run "signCustomFile"
 
         then:
-        ":signCustomFile" in skippedTasks
+        skipped(":signCustomFile")
     }
 
     def "out-of-date when output file is deleted"() {
@@ -214,7 +209,7 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signCustomFile"
 
         then:
-        ":signCustomFile" in nonSkippedTasks
+        executedAndNotSkipped(":signCustomFile")
         def outputFile = file("input.txt.asc")
         outputFile.exists()
 
@@ -223,13 +218,13 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signCustomFile"
 
         then:
-        ":signCustomFile" in nonSkippedTasks
+        executedAndNotSkipped(":signCustomFile")
 
         when:
         run "signCustomFile"
 
         then:
-        ":signCustomFile" in skippedTasks
+        skipped(":signCustomFile")
     }
 
     def "up-to-date when order of signed files changes"() {
@@ -254,7 +249,7 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signCustomFiles"
 
         then:
-        ":signCustomFiles" in nonSkippedTasks
+        executedAndNotSkipped(":signCustomFiles")
         file("input1.txt.asc").exists()
         file("input2.txt.asc").exists()
 
@@ -263,32 +258,7 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signCustomFiles"
 
         then:
-        ":signCustomFiles" in skippedTasks
-    }
-
-    @Unroll
-    def "emits deprecation warning when Sign.#method is used"() {
-        given:
-        buildFile << """
-            ${keyInfo.addAsPropertiesScript()}
-            signing {
-                ${signingConfiguration()}
-                sign jar
-            }
-            signJar.doLast {
-                println $method
-            }
-        """
-
-        when:
-        executer.expectDeprecationWarning()
-        succeeds("signJar")
-
-        then:
-        outputContains("The Sign.$method method has been deprecated")
-
-        where:
-        method << ["getInputFiles()", "getOutputFiles()"]
+        skipped(":signCustomFiles")
     }
 
     def "trying to sign a task that isn't an archive task gives nice enough message"() {
@@ -307,7 +277,6 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         failureHasCause "You cannot sign tasks that are not 'archive' tasks, such as 'jar', 'zip' etc. (you tried to sign task ':clean')"
     }
 
-    @IgnoreIf({GradleContextualExecuter.parallel})
     def "changes to task information after signing block are respected"() {
         given:
         buildFile << """
@@ -328,14 +297,13 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signJar"
 
         then:
-        ":signJar" in nonSkippedTasks
+        executedAndNotSkipped(":signJar")
 
         and:
         file("build", "libs", "changed-1.0-custom.jar.asc").text
 
     }
 
-    @IgnoreIf({GradleContextualExecuter.parallel})
     def "sign with subkey"() {
         given:
         buildFile << """
@@ -350,7 +318,7 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         run "signJar"
 
         then:
-        ":signJar" in nonSkippedTasks
+        executedAndNotSkipped(":signJar")
 
         and:
         file("build", "libs", "sign-1.0.jar.asc").text

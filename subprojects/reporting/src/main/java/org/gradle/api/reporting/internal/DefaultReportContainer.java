@@ -25,6 +25,7 @@ import org.gradle.api.internal.DefaultNamedDomainObjectSet;
 import org.gradle.api.reporting.Report;
 import org.gradle.api.reporting.ReportContainer;
 import org.gradle.api.specs.Spec;
+import org.gradle.api.tasks.Internal;
 import org.gradle.internal.reflect.Instantiator;
 import org.gradle.util.ConfigureUtil;
 
@@ -34,6 +35,7 @@ import java.util.SortedMap;
 
 public class DefaultReportContainer<T extends Report> extends DefaultNamedDomainObjectSet<T> implements ReportContainer<T> {
     private static final Action<Object> IMMUTABLE_VIOLATION_EXCEPTION = new Action<Object>() {
+        @Override
         public void execute(Object arg) {
             throw new ImmutableViolationException();
         }
@@ -44,6 +46,7 @@ public class DefaultReportContainer<T extends Report> extends DefaultNamedDomain
         super(type, instantiator, Report.NAMER, callbackActionDecorator);
 
         enabled = matching(new Spec<T>() {
+            @Override
             public boolean isSatisfiedBy(T element) {
                 return element.isEnabled();
             }
@@ -55,16 +58,19 @@ public class DefaultReportContainer<T extends Report> extends DefaultNamedDomain
         IMMUTABLE_VIOLATION_EXCEPTION.execute(null);
     }
 
+    @Override
     public NamedDomainObjectSet<T> getEnabled() {
         return enabled;
     }
 
+    @Override
     public ReportContainer<T> configure(Closure cl) {
         ConfigureUtil.configureSelf(cl, this);
         return this;
     }
 
     @Nullable
+    @Internal
     public T getFirstEnabled() {
         SortedMap<String, T> map = enabled.getAsMap();
         if (map.isEmpty()) {

@@ -31,6 +31,7 @@ import org.gradle.api.artifacts.transform.TransformSpec
 import org.gradle.api.artifacts.transform.VariantTransform
 import org.gradle.api.artifacts.type.ArtifactTypeContainer
 import org.gradle.api.attributes.AttributesSchema
+import org.gradle.api.plugins.ExtensionContainer
 
 
 /**
@@ -42,6 +43,9 @@ abstract class DependencyHandlerDelegate : DependencyHandler {
 
     internal
     abstract val delegate: DependencyHandler
+
+    override fun getExtensions(): ExtensionContainer =
+            delegate.extensions
 
     override fun add(configurationName: String, dependencyNotation: Any): Dependency? =
         delegate.add(configurationName, dependencyNotation)
@@ -123,4 +127,10 @@ abstract class DependencyHandlerDelegate : DependencyHandler {
 
     override fun enforcedPlatform(notation: Any, configureAction: Action<in Dependency>): Dependency =
         delegate.enforcedPlatform(notation, configureAction)
+
+    override fun testFixtures(notation: Any): Dependency =
+        delegate.testFixtures(notation)
+
+    override fun testFixtures(notation: Any, configureAction: Action<in Dependency>): Dependency =
+        delegate.testFixtures(notation, configureAction)
 }

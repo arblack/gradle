@@ -27,7 +27,7 @@ import org.gradle.test.fixtures.server.http.IvyHttpModule
 import org.gradle.test.fixtures.server.http.IvyHttpRepository
 import org.gradle.util.GradleVersion
 import org.gradle.util.Requires
-import org.hamcrest.Matchers
+import org.hamcrest.CoreMatchers
 import org.junit.Rule
 import spock.lang.Issue
 import spock.lang.Unroll
@@ -86,6 +86,7 @@ uploadArchives {
         module.ivy.sha1.expectPut('testuser', 'password')
 
         when:
+        executer.expectDeprecationWarning()
         run 'uploadArchives'
 
         then:
@@ -126,12 +127,13 @@ uploadArchives {
         server.allowPut('/repo/org.gradle/publish/2/publish-2.jar', 'testuser', 'password')
 
         when:
+        executer.expectDeprecationWarning()
         fails 'uploadArchives'
 
         then:
         failure.assertHasDescription('Execution failed for task \':uploadArchives\'.')
         failure.assertHasCause('Could not publish configuration \'archives\'')
-        failure.assertThatCause(Matchers.containsString('Received status code 401 from server: Unauthorized'))
+        failure.assertThatCause(CoreMatchers.containsString('Received status code 401 from server: Unauthorized'))
 
         where:
         authScheme                   | credsName | creds
@@ -163,23 +165,25 @@ uploadArchives {
         server.addBroken("/")
 
         then:
+        executer.expectDeprecationWarning()
         fails 'uploadArchives'
 
         and:
         failure.assertHasDescription('Execution failed for task \':uploadArchives\'.')
         failure.assertHasCause('Could not publish configuration \'archives\'')
-        failure.assertThatCause(Matchers.containsString('Received status code 500 from server: broken'))
+        failure.assertThatCause(CoreMatchers.containsString('Received status code 500 from server: broken'))
 
         when:
         server.stop()
 
         then:
+        executer.expectDeprecationWarning()
         fails 'uploadArchives'
 
         and:
         failure.assertHasDescription('Execution failed for task \':uploadArchives\'.')
         failure.assertHasCause('Could not publish configuration \'archives\'')
-        failure.assertThatCause(matchesRegexp(".*?Connect to localhost:${repositoryPort} (\\[.*\\])? failed: Connection refused.*"))
+        failure.assertThatCause(matchesRegexp(".*?Connect to 127.0.0.1:${repositoryPort} (\\[.*\\])? failed: Connection refused.*"))
     }
 
     public void usesFirstConfiguredPatternForPublication() {
@@ -210,6 +214,7 @@ uploadArchives {
         module.ivy.sha1.expectPut()
 
         when:
+        executer.expectDeprecationWarning()
         run 'uploadArchives'
 
         then:

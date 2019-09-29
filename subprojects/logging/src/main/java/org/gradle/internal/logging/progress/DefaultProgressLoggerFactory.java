@@ -73,16 +73,18 @@ public class DefaultProgressLoggerFactory implements ProgressLoggerFactory {
 
         // Make some assumptions about the console output
         if (buildOperationDescriptor.getOperationType().isTopLevelWorkItem()) {
-            logger.setLoggingHeader(buildOperationDescriptor.getProgressDisplayName());
+            logger.loggingHeader = buildOperationDescriptor.getProgressDisplayName();
         }
 
         return logger;
     }
 
+    @Override
     public ProgressLogger newOperation(String loggerCategory) {
         return init(loggerCategory, null);
     }
 
+    @Override
     public ProgressLogger newOperation(Class loggerClass, ProgressLogger parent) {
         return init(loggerClass.toString(), parent);
     }
@@ -168,29 +170,6 @@ public class DefaultProgressLoggerFactory implements ProgressLoggerFactory {
         }
 
         @Override
-        public String getShortDescription() {
-            return null;
-        }
-
-        @Override
-        public ProgressLogger setShortDescription(String shortDescription) {
-            assertCanConfigure();
-            return this;
-        }
-
-        @Override
-        public String getLoggingHeader() {
-            return loggingHeader;
-        }
-
-        @Override
-        public ProgressLogger setLoggingHeader(String loggingHeader) {
-            assertCanConfigure();
-            this.loggingHeader = loggingHeader;
-            return this;
-        }
-
-        @Override
         public ProgressLogger start(String description, String status) {
             setDescription(description);
             started(status);
@@ -244,19 +223,23 @@ public class DefaultProgressLoggerFactory implements ProgressLoggerFactory {
             ));
         }
 
+        @Override
         public void progress(String status) {
             progress(status, false);
         }
 
+        @Override
         public void progress(String status, boolean failing) {
             assertRunning();
             listener.progress(new ProgressEvent(progressOperationId, ensureNotNull(status), failing));
         }
 
+        @Override
         public void completed() {
             completed(null, false);
         }
 
+        @Override
         public void completed(String status, boolean failed) {
             assertRunning();
             state = State.completed;

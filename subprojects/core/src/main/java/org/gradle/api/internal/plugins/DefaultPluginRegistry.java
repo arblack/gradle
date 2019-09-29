@@ -82,6 +82,7 @@ public class DefaultPluginRegistry implements PluginRegistry {
         });
     }
 
+    @Override
     public PluginRegistry createChild(final ClassLoaderScope lookupScope) {
         return new DefaultPluginRegistry(this, pluginInspector, lookupScope);
     }
@@ -103,6 +104,7 @@ public class DefaultPluginRegistry implements PluginRegistry {
         return null;
     }
 
+    @Override
     public <T> PluginImplementation<T> inspect(Class<T> clazz) {
         PluginImplementation<T> implementation = maybeInspect(clazz);
         if (implementation != null) {
@@ -147,9 +149,7 @@ public class DefaultPluginRegistry implements PluginRegistry {
     private static <K, V> V uncheckedGet(LoadingCache<K, V> cache, K key) {
         try {
             return cache.get(key);
-        } catch (ExecutionException e) {
-            throw UncheckedException.throwAsUncheckedException(e.getCause());
-        } catch (UncheckedExecutionException e) {
+        } catch (ExecutionException | UncheckedExecutionException e) {
             throw UncheckedException.throwAsUncheckedException(e.getCause());
         }
     }

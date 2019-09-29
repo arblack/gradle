@@ -26,6 +26,7 @@ import org.gradle.api.artifacts.transform.TransformSpec;
 import org.gradle.api.artifacts.transform.VariantTransform;
 import org.gradle.api.artifacts.type.ArtifactTypeContainer;
 import org.gradle.api.attributes.AttributesSchema;
+import org.gradle.api.plugins.ExtensionAware;
 
 import javax.annotation.Nullable;
 import java.util.Map;
@@ -252,7 +253,7 @@ import java.util.Map;
  * The module notation is the same as the dependency notations described above, except that the classifier property is
  * not available. Client modules are represented using a {@link org.gradle.api.artifacts.ClientModule}.
  */
-public interface DependencyHandler {
+public interface DependencyHandler extends ExtensionAware {
     /**
      * Adds a dependency to the given configuration.
      *
@@ -347,7 +348,6 @@ public interface DependencyHandler {
      * @return the dependency constraint handler for this project
      * @since 4.5
      */
-    @Incubating
     DependencyConstraintHandler getConstraints();
 
     /**
@@ -358,7 +358,6 @@ public interface DependencyHandler {
      * @param configureAction the action to use to configure module metadata
      * @since 4.5
      */
-    @Incubating
     void constraints(Action<? super DependencyConstraintHandler> configureAction);
 
     /**
@@ -427,14 +426,12 @@ public interface DependencyHandler {
      * Returns the artifact type definitions for this handler.
      * @since 4.0
      */
-    @Incubating
     ArtifactTypeContainer getArtifactTypes();
 
     /**
      * Configures the artifact type definitions for this handler.
      * @since 4.0
      */
-    @Incubating
     void artifactTypes(Action<? super ArtifactTypeContainer> configureAction);
 
     /**
@@ -448,12 +445,48 @@ public interface DependencyHandler {
     void registerTransform(Action<? super VariantTransform> registrationAction);
 
     /**
-     * Registers an artifact transform.
+     * Registers an <a href="https://docs.gradle.org/current/userguide/dependency_management_attribute_based_matching.html#sec:abm_artifact_transforms">artifact transform</a>.
+     *
+     * <p>
+     *     The registration action needs to specify the {@code from} and {@code to} attributes.
+     *     It may also provide parameters for the transform action by using {@link TransformSpec#parameters(Action)}.
+     * </p>
+     *
+     * <p>For example:</p>
+     *
+     * <pre class='autoTested'>
+     * // You have a transform action like this:
+     * abstract class MyTransform implements TransformAction&lt;Parameters&gt; {
+     *     interface Parameters extends TransformParameters {
+     *         {@literal @}Input
+     *         Property&lt;String&gt; getStringParameter();
+     *         {@literal @}InputFiles
+     *         ConfigurableFileCollection getInputFiles();
+     *     }
+     *
+     *     void transform(TransformOutputs outputs) {
+     *         // ...
+     *     }
+     * }
+     *
+     * // Then you can register the action like this:
+     *
+     * def artifactType = Attribute.of('artifactType', String)
+     *
+     * dependencies.registerTransform(MyTransform) {
+     *     from.attribute(artifactType, "jar")
+     *     to.attribute(artifactType, "java-classes-directory")
+     *
+     *     parameters {
+     *         stringParameter.set("Some string")
+     *         inputFiles.from("my-input-file")
+     *     }
+     * }
+     * </pre>
      *
      * @see TransformAction
      * @since 5.3
      */
-    @Incubating
     <T extends TransformParameters> void registerTransform(Class<? extends TransformAction<T>> actionType, Action<? super TransformSpec<T>> registrationAction);
 
     /**
@@ -464,7 +497,6 @@ public interface DependencyHandler {
      *
      * @since 5.0
      */
-    @Incubating
     Dependency platform(Object notation);
 
     /**
@@ -476,7 +508,6 @@ public interface DependencyHandler {
      *
      * @since 5.0
      */
-    @Incubating
     Dependency platform(Object notation, Action<? super Dependency> configureAction);
 
     /**
@@ -489,7 +520,6 @@ public interface DependencyHandler {
      *
      * @since 5.0
      */
-    @Incubating
     Dependency enforcedPlatform(Object notation);
 
     /**
@@ -503,6 +533,24 @@ public interface DependencyHandler {
      *
      * @since 5.0
      */
-    @Incubating
     Dependency enforcedPlatform(Object notation, Action<? super Dependency> configureAction);
+
+    /**
+     * Declares a dependency on the test fixtures of a component.
+     * @param notation the coordinates of the component to use test fixtures for
+     *
+     * @since 5.6
+     */
+    @Incubating
+    Dependency testFixtures(Object notation);
+
+    /**
+     * Declares a dependency on the test fixtures of a component and allows configuring
+     * the resulting dependency.
+     * @param notation the coordinates of the component to use test fixtures for
+     *
+     * @since 5.6
+     */
+    @Incubating
+    Dependency testFixtures(Object notation, Action<? super Dependency> configureAction);
 }

@@ -97,7 +97,7 @@ public class DefaultIvyModuleResolveMetadata extends AbstractLazyModuleComponent
         ImmutableList<ModuleComponentArtifactMetadata> artifacts = configurationHelper.filterArtifacts(name, hierarchy);
         ImmutableList<ExcludeMetadata> excludesForConfiguration = configurationHelper.filterExcludes(hierarchy);
 
-        DefaultConfigurationMetadata configuration = new DefaultConfigurationMetadata(componentId, name, transitive, visible, hierarchy, ImmutableList.copyOf(artifacts), componentMetadataRules, excludesForConfiguration, getAttributes().asImmutable());
+        DefaultConfigurationMetadata configuration = new DefaultConfigurationMetadata(componentId, name, transitive, visible, hierarchy, ImmutableList.copyOf(artifacts), componentMetadataRules, excludesForConfiguration, getAttributes().asImmutable(), false);
         configuration.setDependencies(configurationHelper.filterDependencies(configuration));
         return configuration;
     }
@@ -127,10 +127,12 @@ public class DefaultIvyModuleResolveMetadata extends AbstractLazyModuleComponent
         return excludes;
     }
 
+    @Override
     public String getBranch() {
         return branch;
     }
 
+    @Override
     public ImmutableMap<NamespaceId, String> getExtraAttributes() {
         return extraAttributes;
     }

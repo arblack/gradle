@@ -22,7 +22,7 @@ import org.gradle.internal.operations.BuildOperationExecutor;
 import org.gradle.internal.operations.BuildOperationRef;
 import org.gradle.internal.operations.CallableBuildOperation;
 
-public abstract class AbstractWorker implements Worker {
+public abstract class AbstractWorker implements BuildOperationAwareWorker {
 
     public static final Result RESULT = new Result();
 
@@ -51,9 +51,18 @@ public abstract class AbstractWorker implements Worker {
             public BuildOperationDescriptor.Builder description() {
                 return BuildOperationDescriptor.displayName(spec.getDisplayName())
                     .parent(parentBuildOperation)
-                    .details(new Details(spec.getImplementationClass().getName(), spec.getDisplayName()));
+                    .details(new Details(getImplementationClassName(spec), spec.getDisplayName()));
             }
         });
+    }
+
+    private static String getImplementationClassName(ActionExecutionSpec spec) {
+        if (spec.getImplementationClass() == AdapterWorkAction.class) {
+            AdapterWorkParameters parameters = (AdapterWorkParameters) spec.getParameters();
+            return parameters.getImplementationClassName();
+        } else {
+            return spec.getImplementationClass().getName();
+        }
     }
 
     interface Work {

@@ -29,7 +29,7 @@ class IvyDynamicRevisionRemoteResolveIntegrationTest extends AbstractHttpDepende
     def setup() {
         settingsFile << "rootProject.name = 'test' "
 
-        resolve = new ResolveTestFixture(buildFile)
+        resolve = new ResolveTestFixture(buildFile, "compile")
         resolve.prepare()
         resolve.addDefaultVariantDerivationStrategy()
     }
@@ -143,10 +143,16 @@ dependencies {
         identifier << Identifier.all
     }
 
-    def "determines latest version with jar only"() {
+    def "determines latest version with jar only if artifact metadata source is configured"() {
         given:
         useRepository ivyHttpRepo
         buildFile << """
+repositories.all {
+    metadataSources {
+        ivyDescriptor()
+        artifact()
+    }
+}
 configurations { compile }
 dependencies {
   compile group: "group", name: "projectA", version: "1.+"
@@ -603,9 +609,9 @@ dependencies {
         succeeds "checkDeps"
         resolve.expectGraph {
             root(":", ":test:") {
-                edge("org.test:projectA:1.+", "org.test:projectA:3.0").byConflictResolution("between versions 1.2, 2.1 and 3.0")
-                edge("org.test:projectA:2.+", "org.test:projectA:3.0").byConflictResolution("between versions 1.2, 2.1 and 3.0")
-                edge("org.test:projectA:3.+", "org.test:projectA:3.0").byConflictResolution("between versions 1.2, 2.1 and 3.0")
+                edge("org.test:projectA:1.+", "org.test:projectA:3.0").byConflictResolution("between versions 3.0, 1.2 and 2.1")
+                edge("org.test:projectA:2.+", "org.test:projectA:3.0").byConflictResolution("between versions 3.0, 1.2 and 2.1")
+                edge("org.test:projectA:3.+", "org.test:projectA:3.0").byConflictResolution("between versions 3.0, 1.2 and 2.1")
             }
         }
     }
@@ -1135,7 +1141,6 @@ dependencies {
         def projectA = ivyHttpRepo.module("group", "projectA", "1.2").withStatus("release").publish()
         directoryList.expectGet()
         projectA.ivy.expectGetMissing()
-        projectA.jar.expectHeadMissing()
 
         then:
         fails "checkDeps"
@@ -1143,7 +1148,6 @@ dependencies {
 Searched in the following locations:
   - ${directoryList.uri}
   - ${projectA.ivy.uri}
-  - ${projectA.jar.uri}
 Required by:
 """)
 
@@ -1184,7 +1188,7 @@ dependencies {
 
         then:
         fails "checkDeps"
-        failure.assertHasCause("Could not download projectA.jar (group:projectA:1.2)")
+        failure.assertHasCause("Could not download projectA-1.2.jar (group:projectA:1.2)")
         failure.assertHasCause("Could not GET '${projectA.jar.uri}'. Received status code 500 from server: broken")
 
         when:

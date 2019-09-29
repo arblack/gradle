@@ -15,7 +15,6 @@
  */
 package org.gradle.tooling.model.eclipse;
 
-import org.gradle.api.Incubating;
 import org.gradle.tooling.model.DomainObjectSet;
 import org.gradle.tooling.model.GradleProject;
 import org.gradle.tooling.model.HasGradleProject;
@@ -34,11 +33,13 @@ public interface EclipseProject extends HierarchicalEclipseProject {
     /**
      * {@inheritDoc}
      */
+    @Override
     EclipseProject getParent();
 
     /**
      * {@inheritDoc}
      */
+    @Override
     DomainObjectSet<? extends EclipseProject> getChildren();
 
     /**
@@ -60,6 +61,7 @@ public interface EclipseProject extends HierarchicalEclipseProject {
      * @return associated gradle project
      * @since 1.0-milestone-5
      */
+    @Override
     GradleProject getGradleProject();
 
     /**
@@ -128,6 +130,5 @@ public interface EclipseProject extends HierarchicalEclipseProject {
      * @since 5.4
      * @see RunEclipseAutoBuildTasks
      */
-    @Incubating
     boolean hasAutoBuildTasks();
 }

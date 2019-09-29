@@ -771,21 +771,24 @@ All of them match the consumer attributes:
             'settings.gradle'('rootProject.name="com.acme.typed-attributes.gradle.plugin"')
             'build.gradle'("""
                 apply plugin: 'groovy'
-                apply plugin: 'maven'
+                apply plugin: 'maven-publish'
 
                 group = 'com.acme.typed-attributes'
                 version = '$version'
 
                 dependencies {
-                    compile localGroovy()
-                    compile gradleApi()
+                    implementation localGroovy()
+                    implementation gradleApi()
                 }
 
-                uploadArchives {
+                publishing {
                     repositories {
-                        mavenDeployer {
-                            repository(url: "${mavenRepo.uri}")
+                        maven {
+                            url "${mavenRepo.uri}"
                         }
+                    }
+                    publications {
+                        maven(MavenPublication) { from components.java }
                     }
                 }
             """)
@@ -825,7 +828,7 @@ All of them match the consumer attributes:
             }
         }
         executer.usingBuildScript(new File(pluginDir, "build.gradle"))
-            .withTasks("uploadArchives")
+            .withTasks("publishMavenPublicationToMavenRepository")
             .run()
     }
 

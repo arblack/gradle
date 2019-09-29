@@ -20,7 +20,7 @@ import org.gradle.integtests.fixtures.AbstractHttpDependencyResolutionTest
 import org.gradle.integtests.fixtures.timeout.IntegrationTestTimeout
 import org.gradle.test.fixtures.server.http.MavenHttpModule
 import org.gradle.test.fixtures.server.http.MavenHttpRepository
-import org.hamcrest.Matchers
+import org.hamcrest.CoreMatchers
 
 import static org.gradle.util.Matchers.matchesRegexp
 
@@ -72,7 +72,7 @@ class RecoverFromBrokenResolutionIntegrationTest extends AbstractHttpDependencyR
         and:
         failure.assertHasDescription("Execution failed for task ':retrieve'.")
         failure.assertHasCause("Could not resolve all files for configuration ':compile'.")
-        failure.assertThatCause(Matchers.containsString("Received status code 500 from server: broken"))
+        failure.assertThatCause(CoreMatchers.containsString("Received status code 500 from server: broken"))
 
 
         when:
@@ -106,7 +106,7 @@ class RecoverFromBrokenResolutionIntegrationTest extends AbstractHttpDependencyR
         and:
         failure.assertHasDescription("Execution failed for task ':retrieve'.")
         failure.assertHasCause("Could not resolve all files for configuration ':compile'.")
-        failure.assertThatCause(matchesRegexp(".*?Connect to localhost:${port} (\\[.*\\])? failed: Connection refused.*"))
+        failure.assertThatCause(matchesRegexp(".*?Connect to 127.0.0.1:${port} (\\[.*\\])? failed: Connection refused.*"))
 
         when:
         server.resetExpectations()
@@ -139,7 +139,7 @@ class RecoverFromBrokenResolutionIntegrationTest extends AbstractHttpDependencyR
         and:
         failure.assertHasDescription("Execution failed for task ':retrieve'.")
         failure.assertHasCause("Could not resolve all files for configuration ':compile'.")
-        failure.assertThatCause(matchesRegexp(".*?Connect to localhost:${port} (\\[.*\\])? failed: Connection refused.*"))
+        failure.assertThatCause(matchesRegexp(".*?Connect to 127.0.0.1:${port} (\\[.*\\])? failed: Connection refused.*"))
 
         when:
         server.resetExpectations()
@@ -175,7 +175,7 @@ class RecoverFromBrokenResolutionIntegrationTest extends AbstractHttpDependencyR
         and:
         failure.assertHasDescription("Execution failed for task ':retrieve'.")
         failure.assertHasCause("Could not resolve all files for configuration ':compile'.")
-        failure.assertThatCause(Matchers.containsString("Received status code 401 from server: Unauthorized"))
+        failure.assertThatCause(CoreMatchers.containsString("Received status code 401 from server: Unauthorized"))
 
         when:
         server.resetExpectations()
@@ -232,7 +232,7 @@ class RecoverFromBrokenResolutionIntegrationTest extends AbstractHttpDependencyR
         and:
         failure.assertHasDescription("Execution failed for task ':retrieve'.")
         failure.assertHasCause("Could not resolve all files for configuration ':compile'.")
-        failure.assertThatCause(matchesRegexp(".*?Connect to localhost:${port} (\\[.*\\])? failed: Connection refused.*"))
+        failure.assertThatCause(matchesRegexp(".*?Connect to 127.0.0.1:${port} (\\[.*\\])? failed: Connection refused.*"))
 
         when:
         server.resetExpectations()
@@ -285,8 +285,8 @@ class RecoverFromBrokenResolutionIntegrationTest extends AbstractHttpDependencyR
         and:
         failure.assertHasDescription("Execution failed for task ':retrieve'.")
         failure.assertHasCause("Could not resolve all files for configuration ':compile'.")
-        failure.assertHasCause("Could not list versions using Ivy pattern 'http://localhost:${port}/ivyRepo/[organisation]/[module]/[revision]/ivy-[revision].xml")
-        failure.assertThatCause(matchesRegexp(".*?Connect to localhost:${port} (\\[.*\\])? failed: Connection refused.*"))
+        failure.assertHasCause("Could not list versions using Ivy pattern 'http://127.0.0.1:${port}/ivyRepo/[organisation]/[module]/[revision]/ivy-[revision].xml")
+        failure.assertThatCause(matchesRegexp(".*?Connect to 127.0.0.1:${port} (\\[.*\\])? failed: Connection refused.*"))
 
         when:
         server.resetExpectations()

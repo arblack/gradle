@@ -105,22 +105,22 @@ apply plugin: 'idea'
     void addsScalaSdkAndCompilerLibraries() {
         executer.withTasks('idea').run()
 
-        hasProjectLibrary('root.ipr', 'scala-sdk-2.10.0', [], [], [], ['scala-library-2.10.0', 'scala-compiler-2.10.0', 'scala-reflect-2.10.0'])
-        hasProjectLibrary('root.ipr', 'scala-sdk-2.9.2', [], [], [], ['scala-library-2.9.2', 'scala-compiler-2.9.2'])
-        hasScalaSdk('project1/project1.iml', '2.9.2')
+        hasProjectLibrary('root.ipr', 'scala-sdk-2.10.0', [], [], [], ['compiler-bridge_2.10', 'scala-library-2.10.0', 'scala-compiler-2.10.0', 'scala-reflect-2.10.0'])
+        hasProjectLibrary('root.ipr', 'scala-sdk-2.11.2', [], [], [], ['compiler-bridge_2.11', 'scala-library-2.11.2', 'scala-compiler-2.11.2', 'scala-reflect-2.11.2', 'scala-xml_2.11-1.0.2', 'scala-parser-combinators_2.11-1.0.2'])
+        hasScalaSdk('project1/project1.iml', '2.11.2')
         hasScalaSdk('project2/project2.iml', '2.10.0')
-        hasScalaSdk('project3/project3.iml', '2.9.2')
+        hasScalaSdk('project3/project3.iml', '2.11.2')
     }
 
     @Test
     void addsScalaFacetAndCompilerLibraries() {
         executer.withTasks('idea').run()
 
-        hasProjectLibrary('root.ipr', 'scala-compiler-2.10.0', ['scala-compiler-2.10.0', 'scala-library-2.10.0', 'scala-reflect-2.10.0'], [], [], [])
-        hasProjectLibrary('root.ipr', 'scala-compiler-2.9.2', ['scala-library-2.9.2', 'scala-compiler-2.9.2'], [], [], [])
-        hasScalaFacet('project1/project1.iml', 'scala-compiler-2.9.2')
+        hasProjectLibrary('root.ipr', 'scala-compiler-2.10.0', ['compiler-bridge_2.10', 'scala-compiler-2.10.0', 'scala-library-2.10.0', 'scala-reflect-2.10.0'], [], [], [])
+        hasProjectLibrary('root.ipr', 'scala-compiler-2.11.2', ['compiler-bridge_2.11', 'scala-library-2.11.2', 'scala-compiler-2.11.2', 'scala-reflect-2.11.2', 'scala-xml_2.11-1.0.2', 'scala-parser-combinators_2.11-1.0.2'], [], [], [])
+        hasScalaFacet('project1/project1.iml', 'scala-compiler-2.11.2')
         hasScalaFacet('project2/project2.iml', 'scala-compiler-2.10.0')
-        hasScalaFacet('project3/project3.iml', 'scala-compiler-2.9.2')
+        hasScalaFacet('project3/project3.iml', 'scala-compiler-2.11.2')
     }
 
     @Test
@@ -146,7 +146,7 @@ repositories {
 }
 
 dependencies {
-    compile "myGroup:myArtifact1:1.0"
+    implementation "myGroup:myArtifact1:1.0"
 }
         """
 
@@ -174,7 +174,7 @@ dependencies {
     }
 
     dependencies {
-        compile "myGroup:myArtifact1:1.0"
+        implementation "myGroup:myArtifact1:1.0"
     }
             """
 
@@ -246,11 +246,11 @@ repositories {
 }
 
 configurations {
-    compile.exclude module: 'myArtifact2'
+    implementation.exclude module: 'myArtifact2'
 }
 
 dependencies {
-    compile "myGroup:myArtifact1:1.0"
+    implementation "myGroup:myArtifact1:1.0"
 }
         """
 
@@ -274,7 +274,7 @@ repositories {
 }
 
 dependencies {
-    compile("myGroup:myArtifact1:1.0") {
+    implementation("myGroup:myArtifact1:1.0") {
         exclude module: "myArtifact2"
     }
 }
@@ -442,7 +442,7 @@ apply plugin: 'org.gradle.scala-lang'
         assert libraryTable
 
         def library = libraryTable.library.find { it.@name == libraryName }
-        assert library
+        assert library : "Can't find $libraryName in ${libraryTable.library.@name.join(', ')}"
 
         def classesRoots = library.CLASSES.root
         assert classesRoots.size() == classesLibs.size()

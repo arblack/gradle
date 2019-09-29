@@ -56,12 +56,9 @@ import org.gradle.internal.typeconversion.NotationParser;
 import org.gradle.internal.typeconversion.NotationParserBuilder;
 import org.gradle.internal.typeconversion.UnsupportedNotationException;
 
-import java.util.Collections;
-import java.util.List;
-
 public class DefaultComponentMetadataHandler implements ComponentMetadataHandler, ComponentMetadataHandlerInternal, ComponentMetadataProcessorFactory {
     private static final String ADAPTER_NAME = ComponentMetadataHandler.class.getSimpleName();
-    private static final List<Class<?>> VALIDATOR_PARAM_LIST = Collections.<Class<?>>singletonList(IvyModuleDescriptor.class);
+    private static final Class<?> VALIDATOR_PARAM = IvyModuleDescriptor.class;
     private static final String INVALID_SPEC_ERROR = "Could not add a component metadata rule for module '%s'.";
 
     private final Instantiator instantiator;
@@ -102,7 +99,7 @@ public class DefaultComponentMetadataHandler implements ComponentMetadataHandler
     }
 
     private static RuleActionAdapter createAdapter() {
-        RuleActionValidator ruleActionValidator = new DefaultRuleActionValidator(VALIDATOR_PARAM_LIST);
+        RuleActionValidator ruleActionValidator = new DefaultRuleActionValidator(VALIDATOR_PARAM);
         return new DefaultRuleActionAdapter(ruleActionValidator, ADAPTER_NAME);
     }
 
@@ -133,26 +130,32 @@ public class DefaultComponentMetadataHandler implements ComponentMetadataHandler
         return new SpecRuleAction<ComponentMetadataDetails>(ruleAction, spec);
     }
 
+    @Override
     public ComponentMetadataHandler all(Action<? super ComponentMetadataDetails> rule) {
         return addRule(createAllSpecRuleAction(ruleActionAdapter.createFromAction(rule)));
     }
 
+    @Override
     public ComponentMetadataHandler all(Closure<?> rule) {
         return addRule(createAllSpecRuleAction(ruleActionAdapter.createFromClosure(ComponentMetadataDetails.class, rule)));
     }
 
+    @Override
     public ComponentMetadataHandler all(Object ruleSource) {
         return addRule(createAllSpecRuleAction(ruleActionAdapter.createFromRuleSource(ComponentMetadataDetails.class, ruleSource)));
     }
 
+    @Override
     public ComponentMetadataHandler withModule(Object id, Action<? super ComponentMetadataDetails> rule) {
         return addRule(createSpecRuleActionForModule(id, ruleActionAdapter.createFromAction(rule)));
     }
 
+    @Override
     public ComponentMetadataHandler withModule(Object id, Closure<?> rule) {
         return addRule(createSpecRuleActionForModule(id, ruleActionAdapter.createFromClosure(ComponentMetadataDetails.class, rule)));
     }
 
+    @Override
     public ComponentMetadataHandler withModule(Object id, Object ruleSource) {
         return addRule(createSpecRuleActionForModule(id, ruleActionAdapter.createFromRuleSource(ComponentMetadataDetails.class, ruleSource)));
     }
@@ -211,6 +214,7 @@ public class DefaultComponentMetadataHandler implements ComponentMetadataHandler
             this.target = target;
         }
 
+        @Override
         public boolean isSatisfiedBy(ComponentMetadataDetails componentMetadataDetails) {
             ModuleVersionIdentifier identifier = componentMetadataDetails.getId();
             return identifier.getGroup().equals(target.getGroup()) && identifier.getName().equals(target.getName());
@@ -224,6 +228,7 @@ public class DefaultComponentMetadataHandler implements ComponentMetadataHandler
             this.target = target;
         }
 
+        @Override
         public boolean isSatisfiedBy(ModuleVersionIdentifier identifier) {
             return identifier.getGroup().equals(target.getGroup()) && identifier.getName().equals(target.getName());
         }

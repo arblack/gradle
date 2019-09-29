@@ -17,10 +17,7 @@
 package org.gradle.api.internal.artifacts.transform;
 
 import org.gradle.api.Action;
-import org.gradle.execution.ProjectExecutionServiceRegistry;
-import org.gradle.internal.Try;
-
-import javax.annotation.Nullable;
+import org.gradle.api.internal.tasks.NodeExecutionContext;
 
 /**
  * A series of {@link TransformationStep}s.
@@ -60,9 +57,9 @@ public class TransformationChain implements Transformation {
     }
 
     @Override
-    public Try<TransformationSubject> transform(TransformationSubject subjectToTransform, ExecutionGraphDependenciesResolver dependenciesResolver, @Nullable ProjectExecutionServiceRegistry services) {
-        return first.transform(subjectToTransform, dependenciesResolver, services)
-            .flatMap(intermediateSubject -> second.transform(intermediateSubject, dependenciesResolver, services));
+    public CacheableInvocation<TransformationSubject> createInvocation(TransformationSubject subjectToTransform, ExecutionGraphDependenciesResolver dependenciesResolver, NodeExecutionContext context) {
+        CacheableInvocation<TransformationSubject> invocation = first.createInvocation(subjectToTransform, dependenciesResolver, context);
+        return invocation.flatMap(intermediate -> second.createInvocation(intermediate, dependenciesResolver, context));
     }
 
     @Override

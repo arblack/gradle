@@ -22,33 +22,41 @@ import org.gradle.api.artifacts.ConfigurationContainer
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ResolveException
 import org.gradle.api.artifacts.dsl.DependencyHandler
+import org.gradle.api.internal.ClassPathRegistry
 import org.gradle.api.internal.tasks.scala.ScalaCompileSpec
+import org.gradle.initialization.ClassLoaderRegistry
 import org.gradle.internal.logging.text.TreeFormatter
 import org.gradle.language.scala.ScalaPlatform
 import org.gradle.process.internal.JavaForkOptionsFactory
 import org.gradle.util.TextUtil
+import org.gradle.workers.internal.ActionExecutionSpecFactory
 import org.gradle.workers.internal.WorkerDaemonFactory
 import spock.lang.Specification
 
 class DownloadingScalaToolChainTest extends Specification {
 
     ConfigurationContainer configurationContainer = Mock()
+    ClassPathRegistry classPathRegistry = Mock()
+    ClassLoaderRegistry classLoaderRegistry = Mock()
+    ActionExecutionSpecFactory actionExecutionSpecFactory = Mock()
     WorkerDaemonFactory workerDaemonFactory = Mock()
     DependencyHandler dependencyHandler = Mock()
     JavaForkOptionsFactory forkOptionsFactory = Mock()
     File gradleUserHome = Mock()
     File rootProjectDir = Mock()
-    DownloadingScalaToolChain scalaToolChain = new DownloadingScalaToolChain(gradleUserHome, rootProjectDir, workerDaemonFactory, configurationContainer, dependencyHandler, forkOptionsFactory)
+    DownloadingScalaToolChain scalaToolChain = new DownloadingScalaToolChain(gradleUserHome, rootProjectDir, workerDaemonFactory, configurationContainer, dependencyHandler, forkOptionsFactory, classPathRegistry, classLoaderRegistry, actionExecutionSpecFactory)
     ScalaPlatform scalaPlatform = Mock()
 
     def setup() {
         _ * scalaPlatform.getScalaVersion() >> "2.10.4"
+        _ * scalaPlatform.getScalaCompatibilityVersion() >> "2.10"
     }
 
     def "tools available when compiler dependencies can be resolved"() {
         when:
         dependencyAvailable("scala-compiler")
         dependencyAvailable("zinc")
+        dependencyAvailable("compiler-bridge")
         then:
         scalaToolChain.select(scalaPlatform).isAvailable()
     }
@@ -71,6 +79,7 @@ class DownloadingScalaToolChainTest extends Specification {
 
         when:
         dependencyAvailable("scala-compiler")
+        dependencyAvailable("compiler-bridge")
         dependencyNotAvailable("zinc")
         toolProvider = scalaToolChain.select(scalaPlatform)
         toolProvider.newCompiler(ScalaCompileSpec.class)

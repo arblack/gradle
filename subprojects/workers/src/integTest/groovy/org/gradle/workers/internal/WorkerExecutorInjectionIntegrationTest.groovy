@@ -26,7 +26,7 @@ class WorkerExecutorInjectionIntegrationTest extends AbstractWorkerExecutorInteg
     @Unroll
     def "workers cannot inject #forbiddenType"() {
         buildFile << """
-            ${getRunnableInjecting("IsolationMode.NONE", forbiddenType.name)}
+            ${getWorkActionInjecting(forbiddenType.name)}
             task runInWorker(type: InjectingWorkerTask)
         """.stripIndent()
 
@@ -34,31 +34,33 @@ class WorkerExecutorInjectionIntegrationTest extends AbstractWorkerExecutorInteg
         fails("runInWorker")
 
         and:
-        failure.assertHasCause("Could not create an instance of type InjectingRunnable.")
+        failure.assertHasCause("Could not create an instance of type InjectingExecution.")
         failure.assertHasCause("Unable to determine constructor argument #1: missing parameter of $forbiddenType, or no service of type $forbiddenType")
 
         where:
         forbiddenType << [Project]
     }
 
-    String getRunnableInjecting(String isolationMode, String injectedClass) {
+    String getWorkActionInjecting(String injectedClass) {
         return """
             import javax.inject.Inject
             import org.gradle.workers.WorkerExecutor
+            import org.gradle.workers.WorkAction
+            import org.gradle.workers.WorkParameters
 
-            class InjectingRunnable implements Runnable {
+            abstract class InjectingExecution implements WorkAction<WorkParameters.None> {
                 
                 @Inject
-                public InjectingRunnable($injectedClass injected) {
+                public InjectingExecution($injectedClass injected) {
                 }
 
-                public void run() {
+                public void execute() {
                 }
             }
 
             class InjectingWorkerTask extends DefaultTask {
 
-                WorkerExecutor executor
+                private final WorkerExecutor executor
 
                 @Inject
                 InjectingWorkerTask(WorkerExecutor executor) {
@@ -67,9 +69,7 @@ class WorkerExecutorInjectionIntegrationTest extends AbstractWorkerExecutorInteg
 
                 @TaskAction
                 public void runInWorker() {
-                    executor.submit(InjectingRunnable) {
-                        isolationMode = $isolationMode
-                    }
+                    executor.noIsolation().submit(InjectingExecution) { }
                 }
             }
         """.stripIndent()

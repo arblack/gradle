@@ -6,7 +6,7 @@ dependencies {
     implementation(localGroovy())
     implementation(gradleApi())
     testImplementation(gradleTestKit())
-    testImplementation("org.spockframework:spock-core:1.1-groovy-2.4") {
+    testImplementation("org.spockframework:spock-core:1.3-groovy-2.4") {
         exclude(module = "groovy-all")
     }
 }
@@ -21,7 +21,10 @@ tasks.register("createClasspathManifest") {
     val outputDir = file("$buildDir/$name")
 
     inputs.files(sourceSets.main.get().runtimeClasspath)
+        .withPropertyName("runtimeClasspath")
+        .withNormalizer(ClasspathNormalizer::class)
     outputs.dir(outputDir)
+        .withPropertyName("outputDir")
 
     doLast {
         outputDir.mkdirs()

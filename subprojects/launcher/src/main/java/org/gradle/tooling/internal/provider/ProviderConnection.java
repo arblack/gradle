@@ -85,7 +85,6 @@ import static java.util.Collections.emptySet;
 public class ProviderConnection {
     private static final Logger LOGGER = LoggerFactory.getLogger(ProviderConnection.class);
     private final PayloadSerializer payloadSerializer;
-    private final LoggingServiceRegistry loggingServices;
     private final BuildLayoutFactory buildLayoutFactory;
     private final DaemonClientFactory daemonClientFactory;
     private final BuildActionExecuter<BuildActionParameters> embeddedExecutor;
@@ -93,9 +92,8 @@ public class ProviderConnection {
     private final JvmVersionDetector jvmVersionDetector;
     private final FileCollectionFactory fileCollectionFactory;
 
-    public ProviderConnection(ServiceRegistry sharedServices, LoggingServiceRegistry loggingServices, BuildLayoutFactory buildLayoutFactory, DaemonClientFactory daemonClientFactory,
+    public ProviderConnection(ServiceRegistry sharedServices, BuildLayoutFactory buildLayoutFactory, DaemonClientFactory daemonClientFactory,
                               BuildActionExecuter<BuildActionParameters> embeddedExecutor, PayloadSerializer payloadSerializer, JvmVersionDetector jvmVersionDetector, FileCollectionFactory fileCollectionFactory) {
-        this.loggingServices = loggingServices;
         this.buildLayoutFactory = buildLayoutFactory;
         this.daemonClientFactory = daemonClientFactory;
         this.embeddedExecutor = embeddedExecutor;
@@ -108,7 +106,7 @@ public class ProviderConnection {
     public void configure(ProviderConnectionParameters parameters) {
         LogLevel providerLogLevel = parameters.getVerboseLogging() ? LogLevel.DEBUG : LogLevel.INFO;
         LOGGER.debug("Configuring logging to level: {}", providerLogLevel);
-        LoggingManagerInternal loggingManager = loggingServices.newInstance(LoggingManagerInternal.class);
+        LoggingManagerInternal loggingManager = sharedServices.newInstance(LoggingManagerInternal.class);
         loggingManager.setLevelInternal(providerLogLevel);
         loggingManager.start();
     }
@@ -227,15 +225,18 @@ public class ProviderConnection {
     private BuildActionExecuter<ProviderOperationParameters> createExecuter(ProviderOperationParameters operationParameters, Parameters params) {
         LoggingManagerInternal loggingManager;
         BuildActionExecuter<BuildActionParameters> executer;
+        InputStream standardInput = operationParameters.getStandardInput();
+        if (standardInput == null) {
+            standardInput = SafeStreams.emptyInput();
+        }
         if (Boolean.TRUE.equals(operationParameters.isEmbedded())) {
-            loggingManager = loggingServices.getFactory(LoggingManagerInternal.class).create();
+            loggingManager = sharedServices.getFactory(LoggingManagerInternal.class).create();
             loggingManager.captureSystemSources();
-            executer = embeddedExecutor;
+            executer = new StdInSwapExecuter(standardInput, embeddedExecutor);
         } else {
             LoggingServiceRegistry loggingServices = LoggingServiceRegistry.newNestedLogging();
             loggingManager = loggingServices.getFactory(LoggingManagerInternal.class).create();
-            InputStream standardInput = operationParameters.getStandardInput();
-            ServiceRegistry clientServices = daemonClientFactory.createBuildClientServices(loggingServices.get(OutputEventListener.class), params.daemonParams, standardInput == null ? SafeStreams.emptyInput() : standardInput);
+            ServiceRegistry clientServices = daemonClientFactory.createBuildClientServices(loggingServices.get(OutputEventListener.class), params.daemonParams, standardInput);
             executer = clientServices.get(DaemonClient.class);
         }
         return new LoggingBridgingBuildActionExecuter(new DaemonBuildActionExecuter(executer, params.daemonParams), loggingManager);

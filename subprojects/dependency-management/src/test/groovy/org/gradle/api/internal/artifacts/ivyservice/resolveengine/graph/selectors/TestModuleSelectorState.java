@@ -55,7 +55,7 @@ public class TestModuleSelectorState implements ResolvableSelectorState {
 
     @Override
     public ComponentSelector getSelector() {
-        throw new UnsupportedOperationException();
+        return new TestComponentSelector();
     }
 
     @Override
@@ -113,4 +113,8 @@ public class TestModuleSelectorState implements ResolvableSelectorState {
         return false;
     }
 
+    @Override
+    public boolean hasStrongOpinion() {
+        return false;
+    }
 }

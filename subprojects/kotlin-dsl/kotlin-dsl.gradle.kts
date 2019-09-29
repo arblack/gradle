@@ -19,6 +19,7 @@ import build.futureKotlin
 import build.kotlin
 import build.kotlinVersion
 import codegen.GenerateKotlinDependencyExtensions
+import org.gradle.build.ReproduciblePropertiesWriter
 
 plugins {
     `kotlin-dsl-module`
@@ -31,51 +32,86 @@ gradlebuildJava {
 }
 
 dependencies {
+    api(project(":kotlinDslToolingModels"))
+    api(project(":kotlinCompilerEmbeddable"))
+    api(futureKotlin("stdlib-jdk8"))
 
-    api(project(":distributionsDependencies"))
+    implementation(project(":baseServices"))
+    implementation(project(":native"))
+    implementation(project(":logging"))
+    implementation(project(":processServices"))
+    implementation(project(":persistentCache"))
+    implementation(project(":coreApi"))
+    implementation(project(":modelCore"))
+    implementation(project(":core"))
+    implementation(project(":baseServicesGroovy")) // for 'Specs'
+    implementation(project(":fileCollections"))
+    implementation(project(":files"))
+    implementation(project(":resources"))
+    implementation(project(":buildCache"))
+    implementation(project(":toolingApi"))
 
-    compileOnly(project(":toolingApi"))
+    implementation(library("groovy"))
+    implementation(library("slf4j_api"))
+    implementation(library("guava"))
+    implementation(library("inject"))
 
-    compile(project(":kotlinDslToolingModels"))
-
-    compile(project(":kotlinCompilerEmbeddable"))
-    compile(futureKotlin("scripting-compiler-embeddable")) {
+    implementation(futureKotlin("scripting-common")) {
         isTransitive = false
     }
-
-    compile(futureKotlin("stdlib-jdk8"))
-    compile(futureKotlin("sam-with-receiver-compiler-plugin")) {
+    implementation(futureKotlin("scripting-jvm")) {
         isTransitive = false
     }
-    compile("org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.0.5") {
+    implementation(futureKotlin("scripting-jvm-host-embeddable")) {
+        isTransitive = false
+    }
+    implementation(futureKotlin("scripting-compiler-embeddable")) {
+        isTransitive = false
+    }
+    implementation(futureKotlin("scripting-compiler-impl-embeddable")) {
+        isTransitive = false
+    }
+    implementation(futureKotlin("sam-with-receiver-compiler-plugin")) {
+        isTransitive = false
+    }
+    implementation("org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.1.0") {
         isTransitive = false
     }
 
     testImplementation(project(":kotlinDslTestFixtures"))
-
     testImplementation(project(":buildCacheHttp"))
     testImplementation(project(":buildInit"))
     testImplementation(project(":jacoco"))
     testImplementation(project(":platformNative"))
     testImplementation(project(":plugins"))
     testImplementation(project(":versionControl"))
+    testImplementation(library("ant"))
+    testImplementation(library("asm"))
+    testImplementation(testLibrary("mockito_kotlin"))
+    testImplementation(testLibrary("jackson_kotlin"))
 
-    testImplementation("com.tngtech.archunit:archunit:0.8.3")
+    testImplementation(testLibrary("archunit"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.0.1")
     testImplementation("org.awaitility:awaitility-kotlin:3.1.6")
 
     testRuntimeOnly(project(":runtimeApiInfo"))
 
+    integTestImplementation(project(":languageGroovy"))
+    integTestImplementation(project(":internalTesting"))
+    integTestImplementation(testLibrary("mockito_kotlin"))
+
     integTestRuntimeOnly(project(":runtimeApiInfo"))
     integTestRuntimeOnly(project(":apiMetadata"))
     integTestRuntimeOnly(project(":pluginDevelopment"))
     integTestRuntimeOnly(project(":toolingApiBuilders"))
+    integTestRuntimeOnly(project(":kotlinDslProviderPlugins"))
+    integTestRuntimeOnly(project(":testingJunitPlatform"))
 }
 
 // --- Enable automatic generation of API extensions -------------------
 val apiExtensionsOutputDir = layout.buildDirectory.dir("generated-sources/kotlin")
 
-val publishedKotlinDslPluginVersion = "1.2.8" // TODO:kotlin-dsl
+val publishedKotlinDslPluginVersion = "1.3.1" // TODO:kotlin-dsl
 
 tasks {
 
@@ -107,4 +143,40 @@ tasks {
     processResources {
         from(writeVersionsManifest)
     }
+}
+
+
+// -- Embedded Kotlin dependencies -------------------------------------
+
+val embeddedKotlinBaseDependencies by configurations.creating
+
+dependencies {
+    embeddedKotlinBaseDependencies(futureKotlin("stdlib-jdk8"))
+    embeddedKotlinBaseDependencies(futureKotlin("reflect"))
+}
+
+val writeEmbeddedKotlinDependencies by tasks.registering {
+    val outputFile = layout.buildDirectory.file("embeddedKotlinDependencies/gradle-kotlin-dsl-embedded-kotlin.properties")
+    inputs.files(embeddedKotlinBaseDependencies)
+    outputs.file(outputFile)
+    doLast {
+
+        val skippedModules = setOf(project.name, "distributionsDependencies", "kotlinCompilerEmbeddable")
+
+        val modules = embeddedKotlinBaseDependencies.incoming.resolutionResult.allComponents
+            .asSequence()
+            .mapNotNull { it.moduleVersion }
+            .filter { it.name !in skippedModules }
+            .associate { "${it.group}:${it.name}" to it.version }
+
+        ReproduciblePropertiesWriter.store(
+            modules,
+            outputFile.get().asFile.apply { parentFile.mkdirs() },
+            null
+        )
+    }
+}
+
+tasks.processResources {
+    from(writeEmbeddedKotlinDependencies)
 }

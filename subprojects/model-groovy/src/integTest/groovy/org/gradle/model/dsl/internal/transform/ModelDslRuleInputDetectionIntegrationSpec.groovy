@@ -19,7 +19,7 @@ package org.gradle.model.dsl.internal.transform
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
 import spock.lang.Unroll
 
-import static org.hamcrest.Matchers.containsString
+import static org.hamcrest.CoreMatchers.containsString
 
 class ModelDslRuleInputDetectionIntegrationSpec extends AbstractIntegrationSpec {
 
@@ -351,6 +351,7 @@ tasks configured
             }
 
             class PrintTask extends DefaultTask {
+                @Internal
                 String message
 
                 @TaskAction

@@ -21,14 +21,14 @@ import org.gradle.integtests.fixtures.resolve.ResolveTestFixture
 import spock.lang.Issue
 import spock.lang.Unroll
 
-import static org.hamcrest.Matchers.containsString
+import static org.hamcrest.CoreMatchers.containsString
 
 class VersionConflictResolutionIntegrationTest extends AbstractIntegrationSpec {
     def setup() {
         settingsFile << """
             rootProject.name = 'test'
 """
-        new ResolveTestFixture(buildFile).addDefaultVariantDerivationStrategy()
+        new ResolveTestFixture(buildFile, "compile").addDefaultVariantDerivationStrategy()
     }
 
 
@@ -48,23 +48,23 @@ allprojects {
 
 project(':api') {
 	dependencies {
-		compile (group: 'org', name: 'foo', version:'1.3.3')
+		implementation (group: 'org', name: 'foo', version:'1.3.3')
 	}
 }
 
 project(':impl') {
 	dependencies {
-		compile (group: 'org', name: 'foo', version:'1.4.4')
+		implementation (group: 'org', name: 'foo', version:'1.4.4')
 	}
 }
 
 project(':tool') {
 	dependencies {
-		compile project(':api')
-		compile project(':impl')
+		implementation project(':api')
+		implementation project(':impl')
 	}
 
-	configurations.compile.resolutionStrategy.failOnVersionConflict()
+	configurations.runtimeClasspath.resolutionStrategy.failOnVersionConflict()
 }
 """
 
@@ -88,20 +88,20 @@ allprojects {
 
 project(':api') {
 	dependencies {
-		compile (group: 'org', name: 'foo', version:'1.3.3')
+		implementation (group: 'org', name: 'foo', version:'1.3.3')
 	}
 }
 
 project(':impl') {
 	dependencies {
-		compile (group: 'org', name: 'foo', version:'1.3.3')
+		implementation (group: 'org', name: 'foo', version:'1.3.3')
 	}
 }
 
 project(':tool') {
 	dependencies {
-		compile project(':api')
-		compile project(':impl')
+		implementation project(':api')
+		implementation project(':impl')
 	}
 
 	configurations.all { resolutionStrategy.failOnVersionConflict() }
@@ -131,20 +131,20 @@ allprojects {
 
 project(':api') {
 	dependencies {
-		compile (group: 'org', name: 'foo', version:'1.3.3')
+		implementation (group: 'org', name: 'foo', version:'1.3.3')
 	}
 }
 
 project(':impl') {
 	dependencies {
-		compile (group: 'org', name: 'foo', version:'1.4.4')
+		implementation (group: 'org', name: 'foo', version:'1.4.4')
 	}
 }
 
 project(':tool') {
 	dependencies {
-		compile project(':api')
-		compile project(':impl')
+		implementation project(':api')
+		implementation project(':impl')
 	}
 }
 """
@@ -160,11 +160,11 @@ project(':tool') {
             root(":tool", "test:tool:") {
                 project(":api", "test:api:") {
                     configuration = "runtimeElements"
-                    edge("org:foo:1.3.3", "org:foo:1.4.4").byConflictResolution("between versions 1.3.3 and 1.4.4")
+                    edge("org:foo:1.3.3", "org:foo:1.4.4").byConflictResolution("between versions 1.4.4 and 1.3.3")
                 }
                 project(":impl", "test:impl:") {
                     configuration = "runtimeElements"
-                    module("org:foo:1.4.4").byConflictResolution("between versions 1.3.3 and 1.4.4")
+                    module("org:foo:1.4.4").byConflictResolution("between versions 1.4.4 and 1.3.3")
                 }
             }
         }
@@ -189,8 +189,8 @@ repositories {
 }
 
 dependencies {
-    compile (group: 'org', name: 'bar', version:'1.0')
-    compile (group: 'org', name: 'baz', version:'1.0')
+    implementation (group: 'org', name: 'bar', version:'1.0')
+    implementation (group: 'org', name: 'baz', version:'1.0')
 }
 
 task resolve {
@@ -210,10 +210,10 @@ task resolve {
         resolve.expectGraph {
             root(":", "org:test:1.0") {
                 module("org:bar:1.0") {
-                    edge("org:foo:1.3.3", "org:foo:1.4.4").byConflictResolution("between versions 1.3.3 and 1.4.4")
+                    edge("org:foo:1.3.3", "org:foo:1.4.4").byConflictResolution("between versions 1.4.4 and 1.3.3")
                 }
                 module("org:baz:1.0") {
-                    module("org:foo:1.4.4").byConflictResolution("between versions 1.3.3 and 1.4.4")
+                    module("org:foo:1.4.4").byConflictResolution("between versions 1.4.4 and 1.3.3")
                 }
             }
         }
@@ -246,7 +246,7 @@ dependencies {
 }
 """
 
-        def resolve = new ResolveTestFixture(buildFile).expectDefaultConfiguration("runtime")
+        def resolve = new ResolveTestFixture(buildFile, "compile").expectDefaultConfiguration("runtime")
         resolve.prepare()
 
         when:
@@ -262,7 +262,7 @@ dependencies {
                 }
                 module("org:two:1.0") {
                     module("org:dep-2.0-bringer:1.0") {
-                        edge("org:dep:2.0", "org:dep:2.5").byConflictResolution("between versions 2.0 and 2.5")
+                        edge("org:dep:2.0", "org:dep:2.5").byConflictResolution("between versions 2.5 and 2.0")
                     }
                     module("org:control-1.2-bringer:1.0") {
                         module("org:control:1.2")
@@ -291,7 +291,7 @@ dependencies {
 }
 """
 
-        def resolve = new ResolveTestFixture(buildFile).expectDefaultConfiguration("runtime")
+        def resolve = new ResolveTestFixture(buildFile, "compile").expectDefaultConfiguration("runtime")
         resolve.prepare()
 
         when:
@@ -446,20 +446,20 @@ allprojects {
 
 project(':api') {
 	dependencies {
-		compile 'org:foo:1.4.4'
+		implementation 'org:foo:1.4.4'
 	}
 }
 
 project(':impl') {
 	dependencies {
-		compile 'org:foo:1.4.1'
+		implementation 'org:foo:1.4.1'
 	}
 }
 
 project(':tool') {
 
 	dependencies {
-		compile project(':api'), project(':impl'), 'org:foo:1.3.0'
+		implementation project(':api'), project(':impl'), 'org:foo:1.3.0'
 	}
 
 	configurations.all {
@@ -471,7 +471,7 @@ project(':tool') {
 
 	task checkDeps {
         doLast {
-            assert configurations.compile*.name.contains('foo-1.4.9.jar')
+            assert configurations.runtimeClasspath*.name.contains('foo-1.4.9.jar')
         }
     }
 }
@@ -507,7 +507,7 @@ repositories {
 }
 
 dependencies {
-    compile 'org:someArtifact:1.0'
+    implementation 'org:someArtifact:1.0'
 }
 
 configurations.all {
@@ -519,7 +519,7 @@ configurations.all {
 
 task checkDeps {
     doLast {
-        def deps = configurations.compile*.name
+        def deps = configurations.runtimeClasspath*.name
         assert deps.contains('someArtifact-1.0.jar')
         assert deps.contains('foo-1.3.0.jar')
         assert deps.size() == 2
@@ -725,7 +725,7 @@ repositories {
 }
 
 dependencies {
-    compile "org:other:1.7"
+    implementation "org:other:1.7"
 }
 """
 
@@ -763,7 +763,7 @@ repositories {
 }
 
 dependencies {
-    compile "org:other:1.7"
+    implementation "org:other:1.7"
 }
 """
 

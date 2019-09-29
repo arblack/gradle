@@ -36,6 +36,7 @@ public class ProjectIvyDependencyDescriptorFactory extends AbstractIvyDependency
         super(excludeRuleConverter);
     }
 
+    @Override
     public LocalOriginDependencyMetadata createDependencyDescriptor(ComponentIdentifier componentId, String clientConfiguration, AttributeContainer clientAttributes, ModuleDependency dependency) {
         ProjectDependencyInternal projectDependency = (ProjectDependencyInternal) dependency;
         projectDependency.beforeResolved();
@@ -53,10 +54,11 @@ public class ProjectIvyDependencyDescriptorFactory extends AbstractIvyDependency
             projectDependency.getTargetConfiguration(),
             convertArtifacts(dependency.getArtifacts()),
             excludes,
-            false, false, dependency.isTransitive(), false, dependency.getReason());
+            false, false, dependency.isTransitive(), false, dependency.isEndorsingStrictVersions(), dependency.getReason());
         return new DslOriginDependencyMetadataWrapper(dependencyMetaData, dependency);
     }
 
+    @Override
     public boolean canConvert(ModuleDependency dependency) {
         return dependency instanceof ProjectDependency;
     }

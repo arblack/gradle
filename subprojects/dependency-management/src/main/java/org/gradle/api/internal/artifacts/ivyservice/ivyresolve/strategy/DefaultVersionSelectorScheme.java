@@ -23,6 +23,8 @@ public class DefaultVersionSelectorScheme implements VersionSelectorScheme {
     /**
      * This constructor is here to maintain backwards compatibility with the nebula plugins
      * and should be removed as soon as possible.
+     *
+     * See https://github.com/nebula-plugins/nebula-gradle-interop/issues/5
      */
     @Deprecated
     public DefaultVersionSelectorScheme(VersionComparator versionComparator) {
@@ -34,6 +36,7 @@ public class DefaultVersionSelectorScheme implements VersionSelectorScheme {
         this.versionParser = versionParser;
     }
 
+    @Override
     public VersionSelector parseSelector(String selectorString) {
         if (VersionRangeSelector.ALL_RANGE.matcher(selectorString).matches()) {
             return new VersionRangeSelector(selectorString, versionComparator.asVersionComparator(), versionParser);
@@ -50,17 +53,13 @@ public class DefaultVersionSelectorScheme implements VersionSelectorScheme {
         return new ExactVersionSelector(selectorString);
     }
 
+    @Override
     public String renderSelector(VersionSelector selector) {
         return selector.getSelector();
     }
 
     @Override
     public VersionSelector complementForRejection(VersionSelector selector) {
-        // TODO:DAZ We can probably now support more versions with `strictly` but we'll need more test coverage
-        if ((selector instanceof ExactVersionSelector)
-            || (selector instanceof VersionRangeSelector && ((VersionRangeSelector) selector).getUpperBound() != null)) {
-            return new InverseVersionSelector(selector);
-        }
-        throw new IllegalArgumentException("Version '" + renderSelector(selector) + "' cannot be converted to a strict version constraint.");
+        return new InverseVersionSelector(selector);
     }
 }

@@ -16,7 +16,6 @@
 package org.gradle.api.file;
 
 import org.gradle.api.Describable;
-import org.gradle.api.Incubating;
 import org.gradle.api.Named;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.util.PatternFilterable;
@@ -39,6 +38,7 @@ public interface SourceDirectorySet extends FileTree, PatternFilterable, Named, 
     /**
      * A concise name for the source directory set (typically used to identify it in a collection).
      */
+    @Override
     String getName();
 
     /**
@@ -50,7 +50,7 @@ public interface SourceDirectorySet extends FileTree, PatternFilterable, Named, 
     SourceDirectorySet srcDir(Object srcPath);
 
     /**
-     * Adds the given source directories to this set. The given directories to not need to exist. Directories that do no exist are ignored.
+     * Adds the given source directories to this set. The given directories do not need to exist. Directories that do not exist are ignored.
      *
      * @param srcPaths The source directories. These are evaluated as per {@link org.gradle.api.Project#files(Object...)}
      * @return this
@@ -110,7 +110,6 @@ public interface SourceDirectorySet extends FileTree, PatternFilterable, Named, 
      * @return The output directory for this set of sources.
      * @since 4.0
      */
-    @Incubating
     File getOutputDir();
 
     /**
@@ -119,7 +118,6 @@ public interface SourceDirectorySet extends FileTree, PatternFilterable, Named, 
      * @param provider provides output directory for this source directory set
      * @since 4.0
      */
-    @Incubating
     void setOutputDir(Provider<File> provider);
 
     /**
@@ -128,6 +126,5 @@ public interface SourceDirectorySet extends FileTree, PatternFilterable, Named, 
      * @param outputDir output directory for this source directory set
      * @since 4.0
      */
-    @Incubating
     void setOutputDir(File outputDir);
 }

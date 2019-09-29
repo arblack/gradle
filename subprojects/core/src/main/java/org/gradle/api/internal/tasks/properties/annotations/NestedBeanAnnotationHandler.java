@@ -18,6 +18,7 @@ package org.gradle.api.internal.tasks.properties.annotations;
 
 import com.google.common.collect.ImmutableSet;
 import org.gradle.api.Task;
+import org.gradle.api.internal.tasks.TaskDependencyContainer;
 import org.gradle.api.internal.tasks.properties.BeanPropertyContext;
 import org.gradle.api.internal.tasks.properties.PropertyValue;
 import org.gradle.api.internal.tasks.properties.PropertyVisitor;
@@ -26,7 +27,6 @@ import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.Optional;
 import org.gradle.internal.UncheckedException;
 import org.gradle.internal.reflect.AnnotationCategory;
-import org.gradle.internal.reflect.ParameterValidationContext;
 import org.gradle.internal.reflect.PropertyMetadata;
 
 import javax.annotation.Nullable;
@@ -72,10 +72,6 @@ public class NestedBeanAnnotationHandler implements PropertyAnnotationHandler {
         }
     }
 
-    @Override
-    public void validatePropertyMetadata(PropertyMetadata propertyMetadata, ParameterValidationContext visitor) {
-    }
-
     @Nullable
     private static Object unpackProvider(@Nullable Object value) {
         // Only unpack one level of Providers, since Provider<Provider<>> is not supported - we don't need two levels of laziness.
@@ -105,6 +101,12 @@ public class NestedBeanAnnotationHandler implements PropertyAnnotationHandler {
         }
 
         @Override
+        public TaskDependencyContainer getTaskDependencies() {
+            // Ignore
+            return TaskDependencyContainer.EMPTY;
+        }
+
+        @Override
         public void attachProducer(Task producer) {
             // Ignore
         }
@@ -126,6 +128,12 @@ public class NestedBeanAnnotationHandler implements PropertyAnnotationHandler {
         @Override
         public Object getUnprocessedValue() {
             return null;
+        }
+
+        @Override
+        public TaskDependencyContainer getTaskDependencies() {
+            // Ignore
+            return TaskDependencyContainer.EMPTY;
         }
 
         @Override

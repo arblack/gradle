@@ -22,14 +22,14 @@ import org.gradle.integtests.fixtures.RequiredFeatures
 class PublishedDependencyConstraintsIntegrationTest extends AbstractModuleDependencyResolveTest {
 
     boolean featureAvailable() {
-        gradleMetadataEnabled
+        gradleMetadataPublished
     }
 
-    void "dependency constraint is ignored when feature is not enabled"() {
+    @RequiredFeatures(
+        [@RequiredFeature(feature = GradleMetadataResolveRunner.GRADLE_METADATA, value="false")]
+    )
+    void "published dependency constraint is ignored when Gradle module metadata is not available"() {
         given:
-        // Do not enable feature
-        settingsFile.text = "rootProject.name = '$rootProjectName'"
-
         repository {
             'org:foo:1.0'()
             'org:foo:1.1'()
@@ -148,7 +148,7 @@ class PublishedDependencyConstraintsIntegrationTest extends AbstractModuleDepend
             root(":", ":test:") {
                 module("org:first-level:1.0") {
                     if (available) {
-                        if (GradleMetadataResolveRunner.gradleMetadataEnabled) {
+                        if (GradleMetadataResolveRunner.gradleMetadataPublished) {
                             constraint("org:foo:1.1", "org:foo:1.1").byConstraint('published dependency constraint')
                         } else {
                             constraint("org:foo:1.1", "org:foo:1.1")
@@ -156,7 +156,7 @@ class PublishedDependencyConstraintsIntegrationTest extends AbstractModuleDepend
                     }
                 }
                 if (available) {
-                    edge("org:foo:1.0","org:foo:1.1").byConflictResolution("between versions 1.0 and 1.1")
+                    edge("org:foo:1.0","org:foo:1.1").byConflictResolution("between versions 1.1 and 1.0")
                 } else {
                     module("org:foo:1.0")
                 }
@@ -221,7 +221,7 @@ class PublishedDependencyConstraintsIntegrationTest extends AbstractModuleDepend
                 }
                 module("org:first-level2:1.0") {
                     if (available) {
-                        edge("org:foo:1.0","org:foo:1.1").byConflictResolution("between versions 1.0 and 1.1")
+                        edge("org:foo:1.0","org:foo:1.1").byConflictResolution("between versions 1.1 and 1.0")
                     } else {
                         module("org:foo:1.0")
                     }
@@ -395,7 +395,7 @@ class PublishedDependencyConstraintsIntegrationTest extends AbstractModuleDepend
                 module("org:first-level:1.0") {
                     if (available) {
                         constraint("org:bar:1.1", "org:foo:1.1").selectedByRule()
-                        edge("org:foo:1.0", "org:foo:1.1").byConflictResolution("between versions 1.0 and 1.1")
+                        edge("org:foo:1.0", "org:foo:1.1").byConflictResolution("between versions 1.1 and 1.0")
                     } else {
                         module("org:foo:1.0")
                     }

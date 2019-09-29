@@ -18,9 +18,9 @@ import org.gradle.build.BuildReceipt
 import org.gradle.build.Install
 import org.gradle.gradlebuild.ProjectGroups.implementationPluginProjects
 import org.gradle.gradlebuild.ProjectGroups.javaProjects
+import org.gradle.gradlebuild.ProjectGroups.kotlinJsProjects
 import org.gradle.gradlebuild.ProjectGroups.pluginProjects
 import org.gradle.gradlebuild.ProjectGroups.publicJavaProjects
-import org.gradle.gradlebuild.ProjectGroups.publishedProjects
 import org.gradle.gradlebuild.buildquality.incubation.IncubatingApiAggregateReportTask
 import org.gradle.gradlebuild.buildquality.incubation.IncubatingApiReportTask
 
@@ -33,7 +33,7 @@ plugins {
     // We have to apply it here at the moment, so that when the build scan plugin is auto-applied via --scan can detect that
     // the plugin has been already applied. For that the plugin has to be applied with the new plugin DSL syntax.
     com.gradle.`build-scan`
-    id("org.gradle.ci.tag-single-build") version("0.63")
+    id("org.gradle.ci.tag-single-build") version("0.69")
 }
 
 defaultTasks("assemble")
@@ -97,12 +97,16 @@ buildTypes {
         tasks("performance:distributedPerformanceTest")
     }
 
+    create("distributedSlowPerformanceTests") {
+        tasks("performance:distributedSlowPerformanceTest")
+    }
+
     create("distributedPerformanceExperiments") {
         tasks("performance:distributedPerformanceExperiment")
     }
 
-    create("distributedFullPerformanceTests") {
-        tasks("performance:distributedFullPerformanceTest")
+    create("distributedHistoricalPerformanceTests") {
+        tasks("performance:distributedHistoricalPerformanceTest")
     }
 
     create("distributedFlakinessDetections") {
@@ -160,13 +164,6 @@ allprojects {
             name = "kotlin-eap"
             url = uri("https://dl.bintray.com/kotlin/kotlin-eap")
         }
-        maven {
-            name = "sonatype-snapshots"
-            url = uri("https://oss.sonatype.org/content/repositories/snapshots")
-            content {
-                includeGroup("org.openjdk.jmc")
-            }
-        }
     }
 
     // patchExternalModules lives in the root project - we need to activate normalization there, too.
@@ -186,10 +183,12 @@ apply(plugin = "gradlebuild.minify")
 apply(from = "gradle/testDependencies.gradle")
 apply(plugin = "gradlebuild.wrapper")
 apply(plugin = "gradlebuild.ide")
-apply(plugin = "gradlebuild.no-resolution-at-configuration")
 apply(plugin = "gradlebuild.update-versions")
 apply(plugin = "gradlebuild.dependency-vulnerabilities")
 apply(plugin = "gradlebuild.add-verify-production-environment-task")
+
+// https://github.com/gradle/gradle-private/issues/2463
+apply(from = "gradle/remove-teamcity-temp-property.gradle")
 
 allprojects {
     apply(plugin = "gradlebuild.dependencies-metadata-rules")
@@ -204,14 +203,17 @@ subprojects {
 
     if (project in publicJavaProjects) {
         apply(plugin = "gradlebuild.public-java-projects")
-    }
-
-    if (project in publishedProjects) {
-        apply(plugin = "gradlebuild.publish-public-libraries")
+        if (project.name != "kotlinDslPlugins") {
+            apply(plugin = "gradlebuild.publish-public-libraries")
+        }
     }
 
     apply(from = "$rootDir/gradle/shared-with-buildSrc/code-quality-configuration.gradle.kts")
-    apply(plugin = "gradlebuild.task-properties-validation")
+
+    if (project !in kotlinJsProjects) {
+        apply(plugin = "gradlebuild.task-properties-validation")
+    }
+
     apply(plugin = "gradlebuild.test-files-cleanup")
 }
 
@@ -343,6 +345,7 @@ dependencies {
     gradlePlugins(project(":testKit"))
 
     coreRuntimeExtensions(project(":dependencyManagement")) //See: DynamicModulesClassPathProvider.GRADLE_EXTENSION_MODULES
+    coreRuntimeExtensions(project(":instantExecution"))
     coreRuntimeExtensions(project(":pluginUse"))
     coreRuntimeExtensions(project(":workers"))
     coreRuntimeExtensions(project(":kotlinDslProviderPlugins"))
@@ -397,3 +400,4 @@ allprojects {
         fileMode = Integer.parseInt("0644", 8)
     }
 }
+

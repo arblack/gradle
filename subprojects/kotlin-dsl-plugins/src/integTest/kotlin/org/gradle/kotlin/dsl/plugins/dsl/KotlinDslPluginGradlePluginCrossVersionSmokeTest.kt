@@ -16,8 +16,10 @@
 
 package org.gradle.kotlin.dsl.plugins.dsl
 
+import org.gradle.integtests.fixtures.RepoScriptBlockUtil
 import org.gradle.kotlin.dsl.embeddedKotlinVersion
 import org.gradle.kotlin.dsl.fixtures.AbstractPluginTest
+import org.gradle.test.fixtures.dsl.GradleDsl
 
 import org.gradle.test.fixtures.file.LeaksFileHandles
 
@@ -43,8 +45,8 @@ class KotlinDslPluginGradlePluginCrossVersionSmokeTest(
         @JvmStatic
         fun testedKotlinVersions() = listOf(
             embeddedKotlinVersion,
-            "1.2.71",
-            "1.2.20"
+            "1.3.40",
+            "1.3.30"
         )
     }
 
@@ -52,9 +54,6 @@ class KotlinDslPluginGradlePluginCrossVersionSmokeTest(
     @LeaksFileHandles("Kotlin Compiler Daemon working directory")
     fun `kotlin-dsl plugin in buildSrc and production code using kotlin-gradle-plugin `() {
 
-        if (kotlinVersion == "1.2.20") {
-            assumeJavaLessThan11()
-        }
         requireGradleDistributionOnEmbeddedExecuter()
         executer.noDeprecationChecks()
 
@@ -66,9 +65,7 @@ class KotlinDslPluginGradlePluginCrossVersionSmokeTest(
                 `kotlin-dsl`
             }
 
-            repositories {
-                jcenter()
-            }
+            ${RepoScriptBlockUtil.jcenterRepository(GradleDsl.KOTLIN)}
 
             dependencies {
                 implementation(kotlin("gradle-plugin", "$kotlinVersion"))

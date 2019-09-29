@@ -30,7 +30,7 @@ import org.gradle.gradlebuild.docs.RenderMarkdownTask
 import org.gradle.gradlebuild.unittestandcompile.ModuleType
 
 plugins {
-    id 'base'
+    id 'java-library'
     id 'gradlebuild.jsoup'
     id 'javascript-base'
     id 'org.asciidoctor.convert'
@@ -100,12 +100,13 @@ dependencies {
     jquery "jquery:jquery.min:1.8.0@js"
     jqueryTipTip "com.drewwilson.code:jquery.tipTip:1.3:minified@js"
 
-    testCompile testLibraries.jsoup
-    testCompile("org.gebish:geb-spock:2.2")
-    testCompile('org.seleniumhq.selenium:selenium-htmlunit-driver:2.42.2')
-    testCompile libraries.commons_httpclient.coordinates
-    testCompile "org.apache.httpcomponents:httpmime:${libraries.commons_httpclient.version}"
-    testCompile project(":core")
+    testImplementation project(":baseServices")
+    testImplementation project(":core")
+    testImplementation testLibraries.jsoup
+    testImplementation("org.gebish:geb-spock:2.2")
+    testImplementation('org.seleniumhq.selenium:selenium-htmlunit-driver:2.42.2')
+    testImplementation libraries.commons_httpclient.coordinates
+    testImplementation "org.apache.httpcomponents:httpmime:${libraries.commons_httpclient.version}"
 
     gradleApiRuntime project(":")
 }
@@ -279,11 +280,50 @@ def dslHtml = tasks.register("dslHtml", Docbook2Xhtml) {
     ext.entryPoint = "$destDir/index.html"
 }
 
+def userguideAddSourceLinks = tasks.register("userguideAddSourceLinks", Sync) {
+    def adocDir = file("${buildDir}/adocs")
+
+    into(adocDir)
+    from("src/docs/userguide") {
+        include("**/*.adoc")
+    }
+    doLast {
+        fileTree(adocDir).each {
+            if (it.name != 'userguide_single.adoc') {
+                it.text = ":description: ${it.path - adocDir.path}\n\n${it.text}"
+            }
+        }
+    }
+}
+
+def userguideFlattenSources = tasks.register("userguideFlattenSources", Sync) {
+    dependsOn css, samples, defaultImports, userguideAddSourceLinks
+    finalizedBy("checkDeadInternalLinks")
+
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    into("${buildDir}/userguide-resources")
+    from("src/docs/css") {
+        into("css")
+    }
+    from("src/samples") {
+        into("samples")
+    }
+    from("src/docs/userguide") {
+        include("img/**")
+    }
+    from(generatedResourcesDir) {
+        into(generatedResourcesDir.name)
+    }
+    from { fileTree(userguideAddSourceLinks.get().destinationDir).files }
+}
+
 def userguideSinglePage = tasks.register("userguideSinglePage", CacheableAsciidoctorTask) {
-    sourceDir = userguideSrcDir
+    dependsOn(userguideFlattenSources)
+    sourceDir = userguideFlattenSources.get().destinationDir
     sources { include 'userguide_single.adoc' }
     outputDir = userguideSinglePageOutputDir
     backends = ['pdf', 'html5']
+    jvmArgs = ['-Xms3g', '-Xmx3g']
 
     attributes toc          : 'macro',
         toclevels           : 2,
@@ -294,8 +334,8 @@ def userguideSinglePage = tasks.register("userguideSinglePage", CacheableAsciido
 }
 
 def javaApiUrl = "https://docs.oracle.com/javase/8/docs/api"
-def groovyApiUrl = "http://docs.groovy-lang.org/docs/groovy-${groovyVersion}/html/gapi"
-def mavenApiUrl = "http://maven.apache.org/ref/${libraries.maven3.version}/maven-model/apidocs"
+def groovyApiUrl = "https://docs.groovy-lang.org/docs/groovy-${groovyVersion}/html/gapi"
+def mavenApiUrl = "https://maven.apache.org/ref/${libraries.maven3.version}/maven-model/apidocs"
 
 def javadocAll = tasks.register("javadocAll", Javadoc) {
     ext.stylesheetFile = file("src/docs/css/javadoc.css")
@@ -309,7 +349,7 @@ def javadocAll = tasks.register("javadocAll", Javadoc) {
     options.addStringOption "stylesheetfile", stylesheetFile.absolutePath
     options.addStringOption "source", "8"
     source ProjectGroups.INSTANCE.getPublicJavaProjects(project).collect { project -> project.sourceSets.main.allJava }
-    destinationDir = new File(docsDir, 'javadoc') 
+    destinationDir = new File(docsDir, 'javadoc')
     classpath = configurations.gradleApiRuntime
 
     PublicApi.includes.each {
@@ -333,7 +373,7 @@ def javadocAll = tasks.register("javadocAll", Javadoc) {
 
             // Commit http://hg.openjdk.java.net/jdk/jdk/rev/89dc31d7572b broke use of JSZip (https://bugs.openjdk.java.net/browse/JDK-8214856) fixed in Java 12 by http://hg.openjdk.java.net/jdk/jdk/rev/b4982a22926b
             // TODO: Remove this script.js workaround when we distribute Gradle using JDK 12 or higher
-            project.copy { 
+            project.copy {
             	from(new File(srcDocsDir, "js/javadoc"))
                 into(destinationDir)
             }
@@ -361,16 +401,20 @@ asciidoctorj {
 }
 
 tasks.withType(CacheableAsciidoctorTask).configureEach {
-    dependsOn css, samples, defaultImports
-
     separateOutputDirs = false
     options doctype: 'book'
 
-    inputs.file("$srcDocsDir/css/manual.css").withPathSensitivity(PathSensitivity.RELATIVE)
-    inputs.dir(file("src/main/resources")).withPathSensitivity(PathSensitivity.RELATIVE)
-    inputs.dir(samplesSrcDir).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file("$srcDocsDir/css/manual.css")
+        .withPropertyName("manual")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(file("src/main/resources"))
+        .withPropertyName("resources")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(samplesSrcDir)
+        .withPropertyName("samples")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 
-    attributes stylesdir           : '../css/',
+    attributes stylesdir    : 'css/',
         stylesheet          : 'manual.css',
         imagesdir           : 'img',
         nofooter            : true,
@@ -383,19 +427,20 @@ tasks.withType(CacheableAsciidoctorTask).configureEach {
         idprefix            : '',
         website             : 'https://gradle.org',
         javaApi             : javaApiUrl,
-        jdkDownloadUrl      : 'http://jdk.java.net/',
-        javadocReferenceUrl : 'http://docs.oracle.com/javase/8/docs/technotes/tools/windows/javadoc.html',
+        jdkDownloadUrl      : 'https://jdk.java.net/',
+        javadocReferenceUrl : 'https://docs.oracle.com/javase/8/docs/technotes/tools/windows/javadoc.html',
         minJdkVersion       : '8',
         antManual           : 'https://ant.apache.org/manual',
         docsUrl             : 'https://docs.gradle.org',
         guidesUrl           : 'https://guides.gradle.org',
         gradleVersion       : version,
-        samplesPath         : "../../samples",
+        samplesPath         : "samples",
         'samples-dir'       : 'src/samples'
 }
 
 def userguideMultiPage = tasks.register("userguideMultiPage", CacheableAsciidoctorTask) {
-    sourceDir = userguideSrcDir
+    dependsOn(userguideFlattenSources)
+    sourceDir = userguideFlattenSources.get().destinationDir
 
     sources {
         include '*.adoc'
@@ -516,4 +561,13 @@ tasks.register("docsZip", Zip) {
     // TODO: Reduce duplication
     from(docsDir)
     dependsOn 'javadocAll', 'userguide', 'dslHtml', 'releaseNotes'
+}
+
+def checkDeadInternalLinks = tasks.register("checkDeadInternalLinks", org.gradle.gradlebuild.docs.FindBrokenInternalLinks) {
+    dependsOn(userguideFlattenSources)
+    inputDirectory.set(userguideFlattenSources.get().destinationDir)
+}
+
+tasks.named("check") {
+    dependsOn(checkDeadInternalLinks)
 }

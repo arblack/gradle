@@ -29,7 +29,7 @@ import org.gradle.test.fixtures.AbstractProjectBuilderSpec
 import org.gradle.util.TestUtil
 
 import static org.gradle.api.tasks.TaskDependencyMatchers.dependsOn
-import static org.hamcrest.Matchers.hasItems
+import static org.hamcrest.CoreMatchers.hasItems
 
 class EarPluginTest extends AbstractProjectBuilderSpec {
     private static final String TEST_APP_XML = """<?xml version="1.0" encoding="UTF-8"?>
@@ -295,6 +295,16 @@ class EarPluginTest extends AbstractProjectBuilderSpec {
 
         then:
         inEar "META-INF/application.xml"
+    }
+
+    def supportsSkippingDeploymentDescriptorCreation() {
+        when:
+        project.pluginManager.apply(EarPlugin)
+        project.convention.plugins.ear.generateDeploymentDescriptor = false
+        executeWithDependencies project.tasks[EarPlugin.EAR_TASK_NAME]
+
+        then:
+        notInEar "META-INF/application.xml"
     }
 
     def avoidsOverwritingDeploymentDescriptor() {

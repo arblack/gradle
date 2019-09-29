@@ -24,10 +24,10 @@ import org.gradle.api.internal.BuildDefinition;
 import org.gradle.api.internal.GradleInternal;
 import org.gradle.api.logging.configuration.ShowStacktrace;
 import org.gradle.composite.internal.IncludedBuildControllers;
-import org.gradle.configuration.BuildConfigurer;
+import org.gradle.configuration.ProjectsPreparer;
 import org.gradle.deployment.internal.DefaultDeploymentRegistry;
-import org.gradle.execution.BuildConfigurationActionExecuter;
-import org.gradle.execution.BuildExecuter;
+import org.gradle.execution.BuildWorkExecutor;
+import org.gradle.initialization.buildsrc.BuildSourceBuilder;
 import org.gradle.initialization.exception.ExceptionAnalyser;
 import org.gradle.internal.InternalBuildAdapter;
 import org.gradle.internal.build.BuildState;
@@ -41,7 +41,6 @@ import org.gradle.internal.event.ListenerManager;
 import org.gradle.internal.featurelifecycle.DeprecatedUsageBuildOperationProgressBroadaster;
 import org.gradle.internal.featurelifecycle.LoggingDeprecatedFeatureHandler;
 import org.gradle.internal.featurelifecycle.ScriptUsageLocationReporter;
-import org.gradle.internal.operations.BuildOperationExecutor;
 import org.gradle.internal.reflect.Instantiator;
 import org.gradle.internal.service.ServiceRegistry;
 import org.gradle.internal.service.scopes.BuildScopeListenerManagerAction;
@@ -79,11 +78,11 @@ public class DefaultGradleLauncherFactory implements GradleLauncherFactory {
         }
 
         DefaultGradleLauncher launcher = doNewInstance(buildDefinition, build, null, parentRegistry, ImmutableList.of(new Stoppable() {
-                @Override
-                public void stop() {
-                    rootBuild = null;
-                }
-            }));
+            @Override
+            public void stop() {
+                rootBuild = null;
+            }
+        }));
         rootBuild = launcher;
 
         final DefaultDeploymentRegistry deploymentRegistry = parentRegistry.get(DefaultDeploymentRegistry.class);
@@ -108,13 +107,14 @@ public class DefaultGradleLauncherFactory implements GradleLauncherFactory {
         NestedBuildFactoryImpl nestedBuildFactory = new NestedBuildFactoryImpl(buildTreeScopeServices);
         serviceRegistry.add(NestedBuildFactory.class, nestedBuildFactory);
 
-        StartParameter startParameter = buildDefinition.getStartParameter();
         ListenerManager listenerManager = serviceRegistry.get(ListenerManager.class);
         for (Action<ListenerManager> action : serviceRegistry.getAll(BuildScopeListenerManagerAction.class)) {
             action.execute(listenerManager);
         }
+
         ScriptUsageLocationReporter usageLocationReporter = new ScriptUsageLocationReporter();
         listenerManager.addListener(usageLocationReporter);
+        StartParameter startParameter = buildDefinition.getStartParameter();
         ShowStacktrace showStacktrace = startParameter.getShowStacktrace();
         switch (showStacktrace) {
             case ALWAYS:
@@ -125,40 +125,32 @@ public class DefaultGradleLauncherFactory implements GradleLauncherFactory {
                 LoggingDeprecatedFeatureHandler.setTraceLoggingEnabled(false);
         }
 
-        BuildOperationExecutor buildOperationExecutor = serviceRegistry.get(BuildOperationExecutor.class);
         DeprecatedUsageBuildOperationProgressBroadaster deprecationWarningBuildOperationProgressBroadaster = serviceRegistry.get(DeprecatedUsageBuildOperationProgressBroadaster.class);
         DeprecationLogger.init(usageLocationReporter, startParameter.getWarningMode(), deprecationWarningBuildOperationProgressBroadaster);
 
-        SettingsLoaderFactory settingsLoaderFactory = serviceRegistry.get(SettingsLoaderFactory.class);
-        SettingsLoader settingsLoader = parent != null ? settingsLoaderFactory.forNestedBuild() : settingsLoaderFactory.forTopLevelBuild();
         GradleInternal parentBuild = parent == null ? null : parent.getGradle();
+
+        SettingsPreparer settingsPreparer = serviceRegistry.get(SettingsPreparer.class);
 
         GradleInternal gradle = serviceRegistry.get(Instantiator.class).newInstance(DefaultGradle.class, parentBuild, startParameter, serviceRegistry.get(ServiceRegistryFactory.class));
 
-        IncludedBuildControllers includedBuildControllers;
-        if (parent == null) {
-            includedBuildControllers = buildTreeScopeServices.get(IncludedBuildControllers.class);
-        } else {
-            includedBuildControllers = IncludedBuildControllers.EMPTY;
-        }
+        IncludedBuildControllers includedBuildControllers = gradle.getServices().get(IncludedBuildControllers.class);
+        TaskExecutionPreparer taskExecutionPreparer = gradle.getServices().get(TaskExecutionPreparer.class);
+
         DefaultGradleLauncher gradleLauncher = new DefaultGradleLauncher(
             gradle,
-            serviceRegistry.get(InitScriptHandler.class),
-            settingsLoader,
-            serviceRegistry.get(BuildLoader.class),
-            serviceRegistry.get(BuildConfigurer.class),
+            serviceRegistry.get(ProjectsPreparer.class),
             serviceRegistry.get(ExceptionAnalyser.class),
             gradle.getBuildListenerBroadcaster(),
-            listenerManager.getBroadcaster(ModelConfigurationListener.class),
             listenerManager.getBroadcaster(BuildCompletionListener.class),
-            buildOperationExecutor,
-            gradle.getServices().get(BuildConfigurationActionExecuter.class),
-            gradle.getServices().get(BuildExecuter.class),
+            gradle.getServices().get(BuildWorkExecutor.class),
             serviceRegistry,
             servicesToStop,
             includedBuildControllers,
-            buildDefinition.getFromBuild()
-        );
+            settingsPreparer,
+            taskExecutionPreparer,
+            gradle.getServices().get(InstantExecution.class),
+            gradle.getServices().get(BuildSourceBuilder.class));
         nestedBuildFactory.setParent(gradleLauncher);
         nestedBuildFactory.setBuildCancellationToken(buildTreeScopeServices.get(BuildCancellationToken.class));
         return gradleLauncher;

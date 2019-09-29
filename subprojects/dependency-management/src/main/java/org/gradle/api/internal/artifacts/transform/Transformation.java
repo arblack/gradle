@@ -18,10 +18,7 @@ package org.gradle.api.internal.artifacts.transform;
 
 import org.gradle.api.Action;
 import org.gradle.api.Describable;
-import org.gradle.execution.ProjectExecutionServiceRegistry;
-import org.gradle.internal.Try;
-
-import javax.annotation.Nullable;
+import org.gradle.api.internal.tasks.NodeExecutionContext;
 
 /**
  * The internal API equivalent of {@link org.gradle.api.artifacts.transform.TransformAction}, which is also aware of our cache infrastructure.
@@ -35,9 +32,12 @@ public interface Transformation extends Describable {
     int stepsCount();
 
     /**
-     * Transforms the given input subject. May call the underlying transformer(s) or retrieve a cached value.
+     * Creates an invocation for invoking the transformation.
+     *
+     * Creating the invocation is not for free, since the workspace identity needs to be determined.
+     * This requires snapshotting the input artifact and its dependencies.
      */
-    Try<TransformationSubject> transform(TransformationSubject subjectToTransform, ExecutionGraphDependenciesResolver dependenciesResolver, @Nullable ProjectExecutionServiceRegistry services);
+    CacheableInvocation<TransformationSubject> createInvocation(TransformationSubject subjectToTransform, ExecutionGraphDependenciesResolver dependenciesResolver, NodeExecutionContext context);
 
     /**
      * Whether the transformation requires dependencies of the transformed artifact to be injected.

@@ -54,7 +54,7 @@ const val testJavaHomePropertyName = "testJavaHome"
 
 
 private
-const val productionJdkName = "OpenJDK 11"
+const val productionJdkName = "AdoptOpenJDK 11"
 
 
 open class AvailableJavaInstallations(private val project: Project, private val javaInstallationProbe: JavaInstallationProbe, private val jvmVersionDetector: JvmVersionDetector) {

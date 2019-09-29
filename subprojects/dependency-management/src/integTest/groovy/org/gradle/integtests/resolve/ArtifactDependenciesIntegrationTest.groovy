@@ -25,7 +25,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import spock.lang.Issue
 
-import static org.hamcrest.Matchers.containsString
+import static org.hamcrest.CoreMatchers.containsString
 
 /**
  * This test contains some of the original coverage for dependency resolution.
@@ -122,12 +122,12 @@ task listMissingClassifier { doLast { configurations.missingClassifier.each { } 
         inTestDirectory().withTasks('listJar').run()
 
         def result = inTestDirectory().withTasks('listMissingExt').runWithFailure()
-        result.assertHasCause("""Could not find lib.zip (org.gradle.test:lib:1.0).
+        result.assertHasCause("""Could not find lib-1.0.zip (org.gradle.test:lib:1.0).
 Searched in the following locations:
     ${module.artifactFile(type: 'zip').toURL()}""")
 
         result = inTestDirectory().withTasks('listMissingClassifier').runWithFailure()
-        result.assertHasCause("""Could not find lib-classifier1.jar (org.gradle.test:lib:1.0).
+        result.assertHasCause("""Could not find lib-1.0-classifier1.jar (org.gradle.test:lib:1.0).
 Searched in the following locations:
     ${module.artifactFile(classifier: 'classifier1').toURL()}""")
     }

@@ -16,23 +16,11 @@
 
 package org.gradle.integtests.fixtures
 
-import org.gradle.api.internal.FeaturePreviews.Feature
-
 class FeaturePreviewsFixture {
 
-    static def activeFeatures() {
-        EnumSet.of(Feature.GRADLE_METADATA)
-    }
-
-    static def inactiveFeatures() {
-        def features = EnumSet.allOf(Feature.class)
-        features.removeAll(activeFeatures())
-        features
-    }
-
-    static void enableGradleMetadata(File settings) {
+    static void enableGroovyCompilationAvoidance(File settings) {
         settings << """
-enableFeaturePreview("GRADLE_METADATA")
+enableFeaturePreview('GROOVY_COMPILATION_AVOIDANCE')
 """
     }
 }

@@ -18,7 +18,6 @@ package org.gradle.api.artifacts;
 import groovy.lang.Closure;
 import groovy.lang.DelegatesTo;
 import org.gradle.api.Action;
-import org.gradle.api.Incubating;
 import org.gradle.api.attributes.HasConfigurableAttributes;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.specs.Spec;
@@ -103,6 +102,7 @@ public interface Configuration extends FileCollection, HasConfigurableAttributes
      * A {@link org.gradle.api.Namer} namer for configurations that returns {@link #getName()}.
      */
     class Namer implements org.gradle.api.Namer<Configuration> {
+        @Override
         public String determineName(Configuration c) {
             return c.getName();
         }
@@ -279,6 +279,7 @@ public interface Configuration extends FileCollection, HasConfigurableAttributes
      *
      * @return a TaskDependency object
      */
+    @Override
     TaskDependency getBuildDependencies();
 
     /**
@@ -326,7 +327,6 @@ public interface Configuration extends FileCollection, HasConfigurableAttributes
      *
      * @since 4.6
      */
-    @Incubating
     DependencyConstraintSet getDependencyConstraints();
 
     /**
@@ -337,7 +337,6 @@ public interface Configuration extends FileCollection, HasConfigurableAttributes
      *
      * @since 4.6
      */
-    @Incubating
     DependencyConstraintSet getAllDependencyConstraints();
 
     /**
@@ -427,7 +426,6 @@ public interface Configuration extends FileCollection, HasConfigurableAttributes
      * @param action a dependency action to execute before the configuration is used.
      * @return this
      */
-    @Incubating
     Configuration withDependencies(Action<? super DependencySet> action);
 
     /**

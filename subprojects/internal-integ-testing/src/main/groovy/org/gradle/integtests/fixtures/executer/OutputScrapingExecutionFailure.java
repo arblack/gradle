@@ -24,10 +24,10 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 import static org.gradle.util.Matchers.isEmpty;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.junit.Assert.assertThat;
 
 public class OutputScrapingExecutionFailure extends OutputScrapingExecutionResult implements ExecutionFailure {
@@ -37,12 +37,12 @@ public class OutputScrapingExecutionFailure extends OutputScrapingExecutionResul
     private static final Pattern LOCATION_PATTERN = Pattern.compile("(?ms)^\\* Where:((.+?)'.+?') line: (\\d+)$");
     private static final Pattern RESOLUTION_PATTERN = Pattern.compile("(?ms)^\\* Try:$(.+?)^\\* Exception is:$");
     private final String summary;
-    private final List<String> descriptions = new ArrayList<String>();
-    private final List<String> lineNumbers = new ArrayList<String>();
-    private final List<String> fileNames = new ArrayList<String>();
+    private final List<String> descriptions = new ArrayList<>();
+    private final List<String> lineNumbers = new ArrayList<>();
+    private final List<String> fileNames = new ArrayList<>();
     private final String resolution;
     // with normalized line endings
-    private final List<String> causes = new ArrayList<String>();
+    private final List<String> causes = new ArrayList<>();
     private final LogContent mainContent;
 
     static boolean hasFailure(String error) {
@@ -57,11 +57,11 @@ public class OutputScrapingExecutionFailure extends OutputScrapingExecutionResul
      * @return A {@link OutputScrapingExecutionResult} for a successful build, or a {@link OutputScrapingExecutionFailure} for a failed build.
      */
     public static OutputScrapingExecutionFailure from(String output, String error) {
-        return new OutputScrapingExecutionFailure(output, error);
+        return new OutputScrapingExecutionFailure(output, error, true);
     }
 
-    protected OutputScrapingExecutionFailure(String output, String error) {
-        super(LogContent.of(output), LogContent.of(error));
+    protected OutputScrapingExecutionFailure(String output, String error, boolean includeBuildSrc) {
+        super(LogContent.of(output), LogContent.of(error), includeBuildSrc);
 
         LogContent withoutDebug = LogContent.of(output).ansiCharsToPlainText().removeDebugPrefix();
 
@@ -117,6 +117,11 @@ public class OutputScrapingExecutionFailure extends OutputScrapingExecutionResul
     }
 
     @Override
+    public ExecutionFailure getIgnoreBuildSrc() {
+        return new OutputScrapingExecutionFailure(getOutput(), getError(), false);
+    }
+
+    @Override
     public LogContent getMainContent() {
         return mainContent;
     }
@@ -124,7 +129,7 @@ public class OutputScrapingExecutionFailure extends OutputScrapingExecutionResul
     private Problem extract(String problem) {
         java.util.regex.Matcher matcher = CAUSE_PATTERN.matcher(problem);
         String description;
-        List<String> causes = new ArrayList<String>();
+        List<String> causes = new ArrayList<>();
         if (!matcher.find()) {
             description = TextUtil.normaliseLineSeparators(problem.trim());
         } else {
@@ -154,11 +159,13 @@ public class OutputScrapingExecutionFailure extends OutputScrapingExecutionResul
         return builder.toString();
     }
 
+    @Override
     public ExecutionFailure assertHasLineNumber(int lineNumber) {
         assertThat(this.lineNumbers, hasItem(equalTo(String.valueOf(lineNumber))));
         return this;
     }
 
+    @Override
     public ExecutionFailure assertHasFileName(String filename) {
         assertThat(this.fileNames, hasItem(equalTo(filename)));
         return this;
@@ -175,12 +182,14 @@ public class OutputScrapingExecutionFailure extends OutputScrapingExecutionResul
         return this;
     }
 
+    @Override
     public ExecutionFailure assertHasCause(String description) {
         assertThatCause(startsWith(description));
         return this;
     }
 
-    public ExecutionFailure assertThatCause(Matcher<String> matcher) {
+    @Override
+    public ExecutionFailure assertThatCause(Matcher<? super String> matcher) {
         for (String cause : causes) {
             if (matcher.matches(cause)) {
                 return this;
@@ -190,6 +199,7 @@ public class OutputScrapingExecutionFailure extends OutputScrapingExecutionResul
         return this;
     }
 
+    @Override
     public ExecutionFailure assertHasResolution(String resolution) {
         assertThat(this.resolution, containsString(resolution));
         return this;
@@ -206,17 +216,20 @@ public class OutputScrapingExecutionFailure extends OutputScrapingExecutionResul
         return this;
     }
 
+    @Override
     public ExecutionFailure assertHasNoCause() {
         assertThat(causes, isEmpty());
         return this;
     }
 
+    @Override
     public ExecutionFailure assertHasDescription(String context) {
         assertThatDescription(startsWith(context));
         return this;
     }
 
-    public ExecutionFailure assertThatDescription(Matcher<String> matcher) {
+    @Override
+    public ExecutionFailure assertThatDescription(Matcher<? super String> matcher) {
         for (String description : descriptions) {
             if (matcher.matches(description)) {
                 return this;
@@ -226,11 +239,13 @@ public class OutputScrapingExecutionFailure extends OutputScrapingExecutionResul
         return this;
     }
 
+    @Override
     public ExecutionFailure assertTestsFailed() {
         new DetailedExecutionFailure(this).assertTestsFailed();
         return this;
     }
 
+    @Override
     public DependencyResolutionFailure assertResolutionFailure(String configurationPath) {
         return new DependencyResolutionFailure(this, configurationPath);
     }

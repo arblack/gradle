@@ -21,6 +21,7 @@ import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.Resol
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.ResolvedVariant
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.ResolvedVariantSet
 import org.gradle.api.internal.attributes.AttributesSchemaInternal
+import org.gradle.api.internal.attributes.ImmutableAttributes
 import org.gradle.api.internal.attributes.ImmutableAttributesFactory
 import org.gradle.api.internal.tasks.TaskDependencyResolveContext
 import org.gradle.internal.Describables
@@ -87,11 +88,6 @@ class AttributeMatchingVariantSelectorSpec extends Specification {
             }
 
             @Override
-            void maybeAdd(Object dependency) {
-
-            }
-
-            @Override
             void visitFailure(Throwable failure) {
                 assert failure instanceof AmbiguousVariantSelectionException
             }
@@ -108,42 +104,28 @@ class AttributeMatchingVariantSelectorSpec extends Specification {
 
     def 'selecting a transform results in added DefaultTransformationDependency'() {
         given:
+        def context = Mock(TaskDependencyResolveContext)
+        def transformation = Mock(Transformation)
+
         def selector = new AttributeMatchingVariantSelector(consumerProvidedVariantFinder, attributesSchema, attributesFactory, transformationNodeRegistry, requestedAttributes, false, dependenciesResolverFactory)
 
         when:
         def result = selector.select(variantSet)
-
+        result.visitDependencies(context)
 
         then:
-        result.visitDependencies(new TaskDependencyResolveContext() {
-            @Override
-            void add(Object dependency) {
-                assert dependency instanceof DefaultTransformationDependency
-            }
-
-            @Override
-            void maybeAdd(Object dependency) {
-
-            }
-
-            @Override
-            void visitFailure(Throwable failure) {
-                throw failure
-            }
-
-            @Override
-            Task getTask() {
-                return null
-            }
-        })
         1 * attributeMatcher.matches(_, _) >> Collections.emptyList()
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, Mock(Transformation), 1)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transformation, 1)
         }
+        1 * transformationNodeRegistry.getOrCreate(_, transformation, _) >> [Mock(TransformationNode)]
+        1 * context.add({it instanceof DefaultTransformationDependency})
     }
 
     def 'can disambiguate sub chains'() {
         given:
+        def context = Mock(TaskDependencyResolveContext)
+
         def otherVariant = Mock(ResolvedVariant) {
             getAttributes() >> otherVariantAttributes
             asDescribable() >> Describables.of("mock other resolved variant")
@@ -158,44 +140,25 @@ class AttributeMatchingVariantSelectorSpec extends Specification {
 
         when:
         def result = selector.select(multiVariantSet)
-
+        result.visitDependencies(context)
 
         then:
-        result.visitDependencies(new TaskDependencyResolveContext() {
-            @Override
-            void add(Object dependency) {
-                assert dependency instanceof DefaultTransformationDependency
-                assert dependency.transformation == transform1
-            }
-
-            @Override
-            void maybeAdd(Object dependency) {
-
-            }
-
-            @Override
-            void visitFailure(Throwable failure) {
-                throw failure
-            }
-
-            @Override
-            Task getTask() {
-                return null
-            }
-        })
         1 * attributeMatcher.matches(_, _) >> Collections.emptyList()
         1 * attributeMatcher.isMatching(requestedAttributes, requestedAttributes) >> true
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform1, 2)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform1, 2)
         }
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform2, 3)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform2, 3)
         }
         1 * attributeMatcher.matches(_, _) >> { args -> args[0] }
+        1 * transformationNodeRegistry.getOrCreate(_, transform1, _) >> [Mock(TransformationNode)]
     }
 
     def 'can disambiguate 2 equivalent chains by picking shortest'() {
         given:
+        def context = Mock(TaskDependencyResolveContext)
+
         def otherVariant = Mock(ResolvedVariant) {
             getAttributes() >> otherVariantAttributes
             asDescribable() >> Describables.of("mock other resolved variant")
@@ -210,44 +173,25 @@ class AttributeMatchingVariantSelectorSpec extends Specification {
 
         when:
         def result = selector.select(multiVariantSet)
-
+        result.visitDependencies(context)
 
         then:
-        result.visitDependencies(new TaskDependencyResolveContext() {
-            @Override
-            void add(Object dependency) {
-                assert dependency instanceof DefaultTransformationDependency
-                assert dependency.transformation == transform1
-            }
-
-            @Override
-            void maybeAdd(Object dependency) {
-
-            }
-
-            @Override
-            void visitFailure(Throwable failure) {
-                throw failure
-            }
-
-            @Override
-            Task getTask() {
-                return null
-            }
-        })
         1 * attributeMatcher.matches(_, _) >> Collections.emptyList()
         1 * attributeMatcher.isMatching(requestedAttributes, requestedAttributes) >> true
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform1, 2)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform1, 2)
         }
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform2, 3)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform2, 3)
         }
         1 * attributeMatcher.matches(_, _) >> { args -> args[0] }
+        1 * transformationNodeRegistry.getOrCreate(_, transform1, _) >> [Mock(TransformationNode)]
     }
 
     def 'can leverage schema disambiguation'() {
         given:
+        def context = Mock(TaskDependencyResolveContext)
+
         def otherVariant = Mock(ResolvedVariant) {
             getAttributes() >> otherVariantAttributes
             asDescribable() >> Describables.of("mock other resolved variant")
@@ -262,43 +206,24 @@ class AttributeMatchingVariantSelectorSpec extends Specification {
 
         when:
         def result = selector.select(multiVariantSet)
-
+        result.visitDependencies(context)
 
         then:
-        result.visitDependencies(new TaskDependencyResolveContext() {
-            @Override
-            void add(Object dependency) {
-                assert dependency instanceof DefaultTransformationDependency
-                assert dependency.transformation == transform1
-            }
-
-            @Override
-            void maybeAdd(Object dependency) {
-
-            }
-
-            @Override
-            void visitFailure(Throwable failure) {
-                throw failure
-            }
-
-            @Override
-            Task getTask() {
-                return null
-            }
-        })
         1 * attributeMatcher.matches(_, _) >> Collections.emptyList()
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(otherVariantAttributes, transform1, 2)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes) >> { args ->
+            match(otherVariantAttributes, transform1, 2)
         }
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(variantAttributes, transform2, 3)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes) >> { args ->
+            match(variantAttributes, transform2, 3)
         }
         1 * attributeMatcher.matches(_, _) >> { args -> [args[0].get(0)] }
+        1 * transformationNodeRegistry.getOrCreate(_, transform1, _) >> [Mock(TransformationNode)]
     }
 
     def 'can disambiguate between three chains when one subset of both others'() {
         given:
+        def context = Mock(TaskDependencyResolveContext)
+
         def yetAnotherVariantAttributes = AttributeTestUtil.attributes(['artifactType': 'foo'])
         def otherVariant = Mock(ResolvedVariant) {
             getAttributes() >> otherVariantAttributes
@@ -319,47 +244,28 @@ class AttributeMatchingVariantSelectorSpec extends Specification {
 
         when:
         def result = selector.select(multiVariantSet)
-
+        result.visitDependencies(context)
 
         then:
-        result.visitDependencies(new TaskDependencyResolveContext() {
-            @Override
-            void add(Object dependency) {
-                assert dependency instanceof DefaultTransformationDependency
-                assert dependency.transformation == transform3
-            }
-
-            @Override
-            void maybeAdd(Object dependency) {
-
-            }
-
-            @Override
-            void visitFailure(Throwable failure) {
-                throw failure
-            }
-
-            @Override
-            Task getTask() {
-                return null
-            }
-        })
         1 * attributeMatcher.matches(_, _) >> Collections.emptyList()
         2 * attributeMatcher.isMatching(requestedAttributes, requestedAttributes) >> true
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform1, 3)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform1, 3)
         }
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform2, 3)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform2, 3)
         }
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(yetAnotherVariantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform3, 2)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(yetAnotherVariantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform3, 2)
         }
         1 * attributeMatcher.matches(_, _) >> { args -> args[0] }
+        1 * transformationNodeRegistry.getOrCreate(_, transform3, _) >> [Mock(TransformationNode)]
     }
 
     def 'can disambiguate 3 equivalent chains by picking shortest'() {
         given:
+        def context = Mock(TaskDependencyResolveContext)
+
         def yetAnotherVariantAttributes = AttributeTestUtil.attributes(['artifactType': 'foo'])
         def otherVariant = Mock(ResolvedVariant) {
             getAttributes() >> otherVariantAttributes
@@ -380,47 +286,28 @@ class AttributeMatchingVariantSelectorSpec extends Specification {
 
         when:
         def result = selector.select(multiVariantSet)
-
+        result.visitDependencies(context)
 
         then:
-        result.visitDependencies(new TaskDependencyResolveContext() {
-            @Override
-            void add(Object dependency) {
-                assert dependency instanceof DefaultTransformationDependency
-                assert dependency.transformation == transform2
-            }
-
-            @Override
-            void maybeAdd(Object dependency) {
-
-            }
-
-            @Override
-            void visitFailure(Throwable failure) {
-                throw failure
-            }
-
-            @Override
-            Task getTask() {
-                return null
-            }
-        })
         1 * attributeMatcher.matches(_, _) >> Collections.emptyList()
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform1, 3)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform1, 3)
         }
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform2, 2)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform2, 2)
         }
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(yetAnotherVariantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform3, 3)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(yetAnotherVariantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform3, 3)
         }
         2 * attributeMatcher.isMatching(requestedAttributes, requestedAttributes) >> true
         1 * attributeMatcher.matches(_, _) >> { args -> args[0] }
+        1 * transformationNodeRegistry.getOrCreate(_, transform2, _) >> [Mock(TransformationNode)]
     }
 
     def 'cannot disambiguate 3 chains when 2 different'() {
         given:
+        def context = Mock(TaskDependencyResolveContext)
+
         def yetAnotherVariantAttributes = AttributeTestUtil.attributes(['artifactType': 'foo'])
         def otherVariant = Mock(ResolvedVariant) {
             getAttributes() >> otherVariantAttributes
@@ -441,41 +328,27 @@ class AttributeMatchingVariantSelectorSpec extends Specification {
 
         when:
         def result = selector.select(multiVariantSet)
-
+        result.visitDependencies(context)
 
         then:
-        result.visitDependencies(new TaskDependencyResolveContext() {
-            @Override
-            void add(Object dependency) {
-                throw new AssertionError("Expected an exception")
-            }
-
-            @Override
-            void maybeAdd(Object dependency) {
-
-            }
-
-            @Override
-            void visitFailure(Throwable failure) {
-                assert failure instanceof AmbiguousTransformException
-            }
-
-            @Override
-            Task getTask() {
-                return null
-            }
-        })
         1 * attributeMatcher.matches(_, _) >> Collections.emptyList()
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform1, 3)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(variantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform1, 3)
         }
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform2, 2)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(otherVariantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform2, 2)
         }
-        1 * consumerProvidedVariantFinder.collectConsumerVariants(yetAnotherVariantAttributes, requestedAttributes, _) >> { args ->
-            args[2].matched(requestedAttributes, transform3, 3)
+        1 * consumerProvidedVariantFinder.collectConsumerVariants(yetAnotherVariantAttributes, requestedAttributes) >> { args ->
+            match(requestedAttributes, transform3, 3)
         }
         1 * attributeMatcher.matches(_, _) >> { args -> args[0] }
         3 * attributeMatcher.isMatching(requestedAttributes, requestedAttributes) >>> [false, false, true]
+        1 * context.visitFailure({it instanceof AmbiguousTransformException})
+    }
+
+    static ConsumerVariantMatchResult match(ImmutableAttributes output, Transformation trn, int depth) {
+        def result = new ConsumerVariantMatchResult(2)
+        result.matched(output, trn, depth)
+        result
     }
 }

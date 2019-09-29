@@ -437,9 +437,6 @@
                 <td>org.gradle.api.plugins.quality.CodeNarc</td>
             </tr>
             <tr>
-                <td>org.gradle.api.plugins.buildcomparison.gradle.CompareGradleBuilds</td>
-            </tr>
-            <tr>
                 <td>org.gradle.api.tasks.Copy</td>
             </tr>
             <tr>
@@ -453,9 +450,6 @@
             </tr>
             <tr>
                 <td>org.gradle.api.tasks.Exec</td>
-            </tr>
-            <tr>
-                <td>org.gradle.api.plugins.quality.FindBugs</td>
             </tr>
             <tr>
                 <td>org.gradle.api.publish.ivy.tasks.GenerateIvyDescriptor</td>
@@ -498,9 +492,6 @@
             </tr>
             <tr>
                 <td>org.gradle.api.tasks.JavaExec</td>
-            </tr>
-            <tr>
-                <td>org.gradle.api.plugins.quality.JDepend</td>
             </tr>
             <tr>
                 <td>org.gradle.api.plugins.quality.Pmd</td>
@@ -569,9 +560,6 @@
             </tr>
             <tr>
                 <td>org.gradle.api.reporting.DirectoryReport</td>
-            </tr>
-            <tr>
-                <td>org.gradle.api.plugins.quality.FindBugsXmlReport</td>
             </tr>
             <tr>
                 <td>org.gradle.api.reporting.Report</td>
@@ -688,10 +676,27 @@
     </section>
 
     <section>
+        <title>Visual Studio task types</title>
+        <para>Tasks contributed by Visual Studio IDE plugins. To configure IDE plugins please use IDE model types.</para>
+        <table>
+            <title>Visual Studio task types</title>
+            <tr>
+                <td>org.gradle.ide.visualstudio.tasks.GenerateSolutionFileTask</td>
+            </tr>
+            <tr>
+                <td>org.gradle.ide.visualstudio.tasks.GenerateProjectFileTask</td>
+            </tr>
+            <tr>
+                <td>org.gradle.ide.visualstudio.tasks.GenerateFiltersFileTask</td>
+            </tr>
+        </table>
+    </section>
+
+    <section>
         <title>Artifact transform types</title>
         <para>Used to define artifact transforms.</para>
         <table>
-            <title>Native tool chain types</title>
+            <title>Artifact transform types</title>
             <tr>
                 <td>org.gradle.api.artifacts.transform.TransformAction</td>
             </tr>
@@ -706,7 +711,7 @@
 
     <section>
         <title>Native tool chains model types</title>
-        <para>Used to configure tool chains for building C++ components.</para>
+        <para>Used to configure tool chains for building C++ and Swift components.</para>
         <table>
             <title>Native tool chain types</title>
             <tr>
@@ -717,6 +722,9 @@
             </tr>
             <tr>
                 <td>org.gradle.nativeplatform.toolchain.VisualCpp</td>
+            </tr>
+            <tr>
+                <td>org.gradle.nativeplatform.toolchain.Swiftc</td>
             </tr>
         </table>
     </section>
@@ -832,12 +840,49 @@
     </section>
 
     <section>
-        <title>C++ binary task types</title>
-        <para>Tasks used to build C++ binaries.</para>
+        <title>C++ component model types</title>
+        <para>Used to configure C++ components.</para>
         <table>
-            <title>C++ component task types</title>
+            <title>C++ component types</title>
+            <tr>
+                <td>org.gradle.language.cpp.CppApplication</td>
+            </tr>
+            <tr>
+                <td>org.gradle.language.cpp.CppLibrary</td>
+            </tr>
+            <tr>
+                <td>org.gradle.nativeplatform.test.cpp.CppTestSuite</td>
+            </tr>
+        </table>
+    </section>
+
+    <section>
+        <title>Swift component model types</title>
+        <para>Used to configure Swift components.</para>
+        <table>
+            <title>Swift component types</title>
+            <tr>
+                <td>org.gradle.language.swift.SwiftApplication</td>
+            </tr>
+            <tr>
+                <td>org.gradle.language.swift.SwiftLibrary</td>
+            </tr>
+            <tr>
+                <td>org.gradle.nativeplatform.test.xctest.SwiftXCTestSuite</td>
+            </tr>
+        </table>
+    </section>
+
+    <section>
+        <title>Native binary task types</title>
+        <para>Tasks used to build native binaries.</para>
+        <table>
+            <title>Native component task types</title>
             <tr>
                 <td>org.gradle.language.cpp.tasks.CppCompile</td>
+            </tr>
+            <tr>
+                <td>org.gradle.language.swift.tasks.SwiftCompile</td>
             </tr>
             <tr>
                 <td>org.gradle.nativeplatform.tasks.LinkExecutable</td>
@@ -849,10 +894,19 @@
                 <td>org.gradle.nativeplatform.tasks.CreateStaticLibrary</td>
             </tr>
             <tr>
+                <td>org.gradle.nativeplatform.tasks.LinkMachOBundle</td>
+            </tr>
+            <tr>
                 <td>org.gradle.nativeplatform.tasks.InstallExecutable</td>
             </tr>
             <tr>
+                <td>org.gradle.nativeplatform.test.xctest.tasks.InstallXCTestBundle</td>
+            </tr>
+            <tr>
                 <td>org.gradle.nativeplatform.test.tasks.RunTestExecutable</td>
+            </tr>
+            <tr>
+                <td>org.gradle.nativeplatform.test.xctest.tasks.XCTest</td>
             </tr>
         </table>
     </section>

@@ -74,6 +74,7 @@ model {
         succeeds("compilePlayBinaryScala")
 
         when:
+        executer.noDeprecationChecks()
         withInjectedRoutesController()
         buildFile << """
 model {
@@ -86,7 +87,7 @@ model {
 """
         then:
         succeeds("compilePlayBinaryScala")
-        executedTasks.contains(":compilePlayBinaryPlayRoutes")
+        executed(":compilePlayBinaryPlayRoutes")
         and:
         destinationDir.assertHasDescendants(createRouteFileList() as String[])
     }

@@ -10,7 +10,11 @@ class BuildDistributions(model: CIBuildModel, stage: Stage) : BaseGradleBuildTyp
     name = "Build Distributions"
     description = "Creation and verification of the distribution and documentation"
 
-    applyDefaults(model, this, "packageBuild", extraParameters = buildScanTag("BuildDistributions") + " -PtestJavaHome=${distributionTestJavaHome}")
+    applyDefaults(model, this, "packageBuild", extraParameters = buildScanTag("BuildDistributions") + " -PtestJavaHome=$distributionTestJavaHome")
+
+    features {
+        publishBuildStatusToGithub(model)
+    }
 
     artifactRules = """$artifactRules
         build/distributions/*.zip => distributions

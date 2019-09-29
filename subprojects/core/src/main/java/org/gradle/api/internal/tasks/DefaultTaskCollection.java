@@ -37,6 +37,7 @@ import org.gradle.api.tasks.TaskCollection;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.internal.Cast;
 import org.gradle.internal.reflect.Instantiator;
+import org.gradle.model.internal.core.ModelPath;
 
 import java.util.Map;
 
@@ -61,6 +62,7 @@ public class DefaultTaskCollection<T extends Task> extends DefaultNamedDomainObj
         this.parentMutationGuard = parentMutationGuard;
     }
 
+    @Override
     protected <S extends T> DefaultTaskCollection<S> filtered(CollectionFilter<S> filter) {
         return getInstantiator().newInstance(DefaultTaskCollection.class, this, filter, getInstantiator(), project, parentMutationGuard);
     }
@@ -80,10 +82,12 @@ public class DefaultTaskCollection<T extends Task> extends DefaultNamedDomainObj
         return matching(Specs.<T>convertClosureToSpec(spec));
     }
 
+    @Override
     public Action<? super T> whenTaskAdded(Action<? super T> action) {
         return whenObjectAdded(action);
     }
 
+    @Override
     public void whenTaskAdded(Closure closure) {
         whenObjectAdded(closure);
     }
@@ -135,6 +139,11 @@ public class DefaultTaskCollection<T extends Task> extends DefaultNamedDomainObj
     }
 
     @Override
+    protected boolean hasWithName(String name) {
+        return (project.getModelRegistry() != null && project.getModelRegistry().state(ModelPath.path("tasks." + name)) != null) || super.hasWithName(name);
+    }
+
+    @Override
     public NamedDomainObjectCollectionSchema getCollectionSchema() {
         return new NamedDomainObjectCollectionSchema() {
             @Override
@@ -181,6 +190,10 @@ public class DefaultTaskCollection<T extends Task> extends DefaultNamedDomainObj
                 );
             }
         };
+    }
+
+    public Action<? super T> whenObjectRemovedInternal(Action<? super T> action) {
+        return super.whenObjectRemoved(action);
     }
 
     // Cannot be private due to reflective instantiation

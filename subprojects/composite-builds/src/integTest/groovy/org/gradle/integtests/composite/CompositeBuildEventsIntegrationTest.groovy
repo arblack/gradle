@@ -56,7 +56,7 @@ class CompositeBuildEventsIntegrationTest extends AbstractCompositeBuildIntegrat
 
         buildA.buildFile << """
             task resolveArtifacts(type: Copy) {
-                from configurations.compile
+                from configurations.compileClasspath
                 into 'libs'
             }
 """
@@ -319,6 +319,7 @@ class CompositeBuildEventsIntegrationTest extends AbstractCompositeBuildIntegrat
     }
 
     protected void execute() {
+        executer.expectDeprecationWarnings(2) // Due to LoggingBuildListener
         super.execute(buildA, ":resolveArtifacts", ["-I../gradle-user-home/init.gradle"])
     }
 

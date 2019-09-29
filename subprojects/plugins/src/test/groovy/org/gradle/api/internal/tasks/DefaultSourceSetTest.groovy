@@ -30,17 +30,20 @@ import org.junit.Rule
 import spock.lang.Specification
 
 import static org.gradle.util.Matchers.isEmpty
-import static org.hamcrest.Matchers.equalTo
-import static org.hamcrest.Matchers.hasItem
-import static org.hamcrest.Matchers.instanceOf
-import static org.hamcrest.Matchers.nullValue
+import static org.hamcrest.CoreMatchers.equalTo
+import static org.hamcrest.CoreMatchers.hasItem
+import static org.hamcrest.CoreMatchers.instanceOf
+import static org.hamcrest.CoreMatchers.nullValue
 import static org.junit.Assert.assertThat
 
 class DefaultSourceSetTest extends Specification {
     public @Rule TestNameTestDirectoryProvider tmpDir = new TestNameTestDirectoryProvider()
     private final TaskResolver taskResolver = [resolveTask: {name -> [getName: {name}] as Task}] as TaskResolver
+    private final TaskDependencyFactory taskDependencyFactory = Stub(TaskDependencyFactory) {
+        _ * configurableDependency() >> new DefaultTaskDependency(taskResolver)
+    }
     private final FileResolver fileResolver = TestFiles.resolver(tmpDir.testDirectory)
-    private final FileCollectionFactory fileCollectionFactory = new DefaultFileCollectionFactory(fileResolver, taskResolver)
+    private final FileCollectionFactory fileCollectionFactory = new DefaultFileCollectionFactory(fileResolver, taskDependencyFactory, TestFiles.directoryFileTreeFactory(), TestFiles.patternSetFactory)
 
     private DefaultSourceSet sourceSet(String name) {
         def s = TestUtil.instantiatorFactory().decorateLenient().newInstance(DefaultSourceSet, name, TestUtil.objectFactory(tmpDir.testDirectory))

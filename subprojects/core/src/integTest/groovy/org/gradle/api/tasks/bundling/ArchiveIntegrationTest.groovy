@@ -15,18 +15,17 @@
  */
 package org.gradle.api.tasks.bundling
 
-
 import org.apache.commons.lang.RandomStringUtils
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
 import org.gradle.integtests.fixtures.archives.TestReproducibleArchives
 import org.gradle.test.fixtures.archive.TarTestFixture
 import org.gradle.test.fixtures.file.TestFile
-import org.hamcrest.Matchers
+import org.hamcrest.CoreMatchers
 import org.junit.Assume
 import spock.lang.Issue
 import spock.lang.Unroll
 
-import static org.hamcrest.Matchers.equalTo
+import static org.hamcrest.CoreMatchers.equalTo
 
 @TestReproducibleArchives
 class ArchiveIntegrationTest extends AbstractIntegrationSpec {
@@ -286,7 +285,7 @@ class ArchiveIntegrationTest extends AbstractIntegrationSpec {
 
         then:
         failure.assertHasDescription("Execution failed for task ':copy'.")
-        failure.assertThatCause(Matchers.startsWith("Unable to expand TAR"))
+        failure.assertThatCause(CoreMatchers.startsWith("Unable to expand TAR"))
     }
 
     def cannotCreateAnEmptyZip() {
@@ -654,8 +653,41 @@ class ArchiveIntegrationTest extends AbstractIntegrationSpec {
         expandDir.assertHasDescendants('shared/zip.txt', 'zipdir1/file1.txt', 'shared/tar.txt', 'tardir1/file1.txt', 'shared/dir.txt', 'dir1/file1.txt')
     }
 
+    @Unroll
+    @Issue("https://github.com/gradle/gradle/issues/9673")
+    def "can extract #archiveFile with exclusions"() {
+        given:
+        "$archive"(archiveFile) {
+            lib {
+                file("exclude").text = "exclude"
+                file("include").text = "include"
+            }
+        }
+        and:
+        buildFile << """
+        task extract(type: Copy) {
+            from $unarchive ("$archiveFile")
 
-    def ensureDuplicatesIncludedInTarByDefault() {
+            exclude { details ->
+                details.isDirectory() ||
+                details.file.text.contains('exclude')
+            }
+            destinationDir = new File(buildDir, "output")
+        }
+        """
+        when:
+        succeeds 'extract'
+        then:
+        file("build/output/lib/exclude").assertDoesNotExist()
+        file("build/output/lib/include").assertExists()
+
+        where:
+        archiveFile | unarchive | archive
+        "test.zip"  | "zipTree" | "createZip"
+        "test.tar"  | "tarTree" | "createTar"
+    }
+
+    def 'ensure duplicates not included in tar by default'() {
         given:
         createFilesStructureForDupeTests()
         buildFile << '''
@@ -668,12 +700,30 @@ class ArchiveIntegrationTest extends AbstractIntegrationSpec {
             }
             '''
         when:
-        run 'tar'
+        fails 'tar'
+        then:
+        failure.assertHasCause('Encountered duplicate path "file1.txt" during copy operation configured with DuplicatesStrategy.FAIL')
+    }
 
+    def 'ensure duplicates can be included in tar'() {
+        given:
+        createFilesStructureForDupeTests()
+        buildFile << '''
+            task tar(type: Tar) {
+                duplicatesStrategy = DuplicatesStrategy.INCLUDE
+                from 'dir1'
+                from 'dir2'
+                from 'dir3'
+                destinationDir = buildDir
+                archiveName = 'test.tar'
+            }
+            '''
+        when:
+        run 'tar'
         then:
         def tar = new TarTestFixture(file("build/test.tar"))
         tar.assertContainsFile('file1.txt', 2)
-        tar.assertContainsFile('file2.txt')
+        tar.assertContainsFile('file2.txt', 1)
     }
 
     def ensureDuplicatesCanBeExcludedFromTar() {
@@ -728,7 +778,7 @@ class ArchiveIntegrationTest extends AbstractIntegrationSpec {
         when:
         run "shouldRun"
         then:
-        ":tar" in executedTasks
+        executed(":tar")
     }
 
     @Issue("https://github.com/gradle/gradle#1108")
@@ -772,6 +822,38 @@ class ArchiveIntegrationTest extends AbstractIntegrationSpec {
         includeEmptyDirs | expectedDescendants
         true             | ["file2.txt", "file3.txt", "dir3"]
         false            | ["file2.txt", "file3.txt"]
+    }
+
+    @Unroll
+    @Issue("https://github.com/gradle/gradle/issues/10311")
+    def "can clear version property on #taskType tasks"() {
+        buildFile << """
+            apply plugin: 'base'
+            version = "1.0"
+            task archive(type: $taskType) {
+                from("src")
+                $prop = null
+            }
+        """
+        settingsFile << """
+            rootProject.name = "archive"
+        """
+        file("src/input").touch()
+        when:
+        succeeds "archive"
+        then:
+        file(archiveFile).assertExists()
+
+        where:
+        taskType | prop | archiveFile
+        "Zip"    | "version"   | "build/distributions/archive.zip"
+        "Jar"    | "version"   | "build/libs/archive.jar"
+        "Tar"    | "version"   | "build/distributions/archive.tar"
+
+        "Zip"    | "baseName"   | "build/distributions/1.0.zip"
+        "Jar"    | "baseName"   | "build/libs/1.0.jar"
+        "Tar"    | "baseName"   | "build/distributions/1.0.tar"
+
     }
 
     private def createTar(String name, Closure cl) {

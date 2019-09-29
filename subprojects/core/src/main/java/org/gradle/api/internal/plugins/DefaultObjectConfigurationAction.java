@@ -28,7 +28,10 @@ import org.gradle.configuration.ScriptPluginFactory;
 import org.gradle.groovy.scripts.ScriptSource;
 import org.gradle.groovy.scripts.TextResourceScriptSource;
 import org.gradle.internal.resource.TextResource;
-import org.gradle.internal.resource.TextResourceLoader;
+import org.gradle.internal.resource.TextUriResourceLoader;
+import org.gradle.internal.verifier.HttpRedirectVerifier;
+import org.gradle.internal.verifier.HttpRedirectVerifierFactory;
+import org.gradle.util.DeprecationLogger;
 import org.gradle.util.GUtil;
 
 import java.net.URI;
@@ -43,27 +46,30 @@ public class DefaultObjectConfigurationAction implements ObjectConfigurationActi
     private final Set<Object> targets = new LinkedHashSet<Object>();
     private final Set<Runnable> actions = new LinkedHashSet<Runnable>();
     private final ClassLoaderScope classLoaderScope;
-    private final TextResourceLoader resourceLoader;
+    private final TextUriResourceLoader.Factory textUriFileResourceLoaderFactory;
     private final Object defaultTarget;
 
     public DefaultObjectConfigurationAction(FileResolver resolver, ScriptPluginFactory configurerFactory,
                                             ScriptHandlerFactory scriptHandlerFactory, ClassLoaderScope classLoaderScope,
-                                            TextResourceLoader resourceLoader, Object defaultTarget) {
+                                            TextUriResourceLoader.Factory textUriFileResourceLoaderFactory, Object defaultTarget) {
         this.resolver = resolver;
         this.configurerFactory = configurerFactory;
         this.scriptHandlerFactory = scriptHandlerFactory;
         this.classLoaderScope = classLoaderScope;
-        this.resourceLoader = resourceLoader;
+        this.textUriFileResourceLoaderFactory = textUriFileResourceLoaderFactory;
         this.defaultTarget = defaultTarget;
     }
 
+    @Override
     public ObjectConfigurationAction to(Object... targets) {
         GUtil.flatten(targets, this.targets);
         return this;
     }
 
+    @Override
     public ObjectConfigurationAction from(final Object script) {
         actions.add(new Runnable() {
+            @Override
             public void run() {
                 applyScript(script);
             }
@@ -71,8 +77,10 @@ public class DefaultObjectConfigurationAction implements ObjectConfigurationActi
         return this;
     }
 
+    @Override
     public ObjectConfigurationAction plugin(final Class<? extends Plugin> pluginClass) {
         actions.add(new Runnable() {
+            @Override
             public void run() {
                 applyPlugin(pluginClass);
             }
@@ -80,8 +88,10 @@ public class DefaultObjectConfigurationAction implements ObjectConfigurationActi
         return this;
     }
 
+    @Override
     public ObjectConfigurationAction plugin(final String pluginId) {
         actions.add(new Runnable() {
+            @Override
             public void run() {
                 applyType(pluginId);
             }
@@ -89,8 +99,10 @@ public class DefaultObjectConfigurationAction implements ObjectConfigurationActi
         return this;
     }
 
+    @Override
     public ObjectConfigurationAction type(final Class<?> pluginClass) {
         actions.add(new Runnable() {
+            @Override
             public void run() {
                 applyType(pluginClass);
             }
@@ -98,9 +110,37 @@ public class DefaultObjectConfigurationAction implements ObjectConfigurationActi
         return this;
     }
 
+    private HttpRedirectVerifier createHttpRedirectVerifier(URI scriptUri) {
+        return  HttpRedirectVerifierFactory.create(
+            scriptUri,
+            false,
+            () -> DeprecationLogger
+                .nagUserOfDeprecated(
+                    "Applying script plugins from insecure URIs",
+                    "Switch to HTTPS or use TextResourceFactory.fromInsecureUri() to silence the warning."
+                ),
+            redirect -> DeprecationLogger
+                .nagUserOfDeprecated(
+                    "Applying script plugins from an insecure redirect",
+                    "Switch to HTTPS or use TextResourceFactory.fromInsecureUri() to silence the warning.",
+                    String.format(
+                        "'%s' redirects to '%s'.",
+                        scriptUri,
+                        redirect
+                    )
+                )
+        );
+    }
+
     private void applyScript(Object script) {
         URI scriptUri = resolver.resolveUri(script);
-        TextResource resource = resourceLoader.loadUri("script", scriptUri);
+        TextResource resource;
+        if (script instanceof TextResource) {
+            resource = (TextResource) script;
+        } else {
+            HttpRedirectVerifier redirectVerifier = createHttpRedirectVerifier(scriptUri);
+            resource = textUriFileResourceLoaderFactory.create(redirectVerifier).loadUri("script", scriptUri);
+        }
         ScriptSource scriptSource = new TextResourceScriptSource(resource);
         ClassLoaderScope classLoaderScopeChild = classLoaderScope.createChild("script-" + scriptUri.toString());
         ScriptHandler scriptHandler = scriptHandlerFactory.create(scriptSource, classLoaderScopeChild);

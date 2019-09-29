@@ -16,6 +16,7 @@
 package org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.selectors;
 
 import com.google.common.collect.Lists;
+import org.apache.commons.lang.StringUtils;
 import org.gradle.api.internal.artifacts.ResolvedVersionConstraint;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.strategy.DefaultVersionComparator;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.strategy.LatestVersionSelector;
@@ -119,7 +120,7 @@ class SelectorStateResolverResults {
     boolean alreadyHaveResolutionForSelector(ResolvableSelectorState selector) {
         for (Registration registration : results) {
             ComponentIdResolveResult discovered = registration.result;
-            if (included(selector, discovered, registration.selector.isFromLock())) {
+            if (selectorAcceptsCandidate(selector, discovered, registration.selector.isFromLock())) {
                 register(selector, discovered);
                 selector.markResolved();
                 return true;
@@ -128,13 +129,15 @@ class SelectorStateResolverResults {
         return false;
     }
 
-    boolean replaceExistingResolutionsWithBetterResult(ComponentIdResolveResult resolveResult, boolean isFromLock) {
+    boolean replaceExistingResolutionsWithBetterResult(ComponentIdResolveResult candidate, boolean isFromLock) {
         // Check already-resolved dependencies and use this version if it's compatible
         boolean replaces = false;
         for (Registration registration : results) {
-            if (emptyVersion(registration.result) || sameVersion(registration.result, resolveResult) ||
-                    (included(registration.selector, resolveResult, isFromLock) && lowerVersion(registration.result, resolveResult))) {
-                registration.result = resolveResult;
+            ComponentIdResolveResult previous = registration.result;
+            ResolvableSelectorState previousSelector = registration.selector;
+            if (emptyVersion(previous) || sameVersion(previous, candidate) ||
+                    (selectorAcceptsCandidate(previousSelector, candidate, isFromLock) && lowerVersion(previous, candidate))) {
+                registration.result = candidate;
                 replaces = true;
             }
         }
@@ -145,21 +148,21 @@ class SelectorStateResolverResults {
         results.add(new Registration(selector, resolveResult));
     }
 
-    private boolean emptyVersion(ComponentIdResolveResult existing) {
+    private static boolean emptyVersion(ComponentIdResolveResult existing) {
         if (existing.getFailure() == null) {
             return existing.getModuleVersionId().getVersion().isEmpty();
         }
         return false;
     }
 
-    private boolean sameVersion(ComponentIdResolveResult existing, ComponentIdResolveResult resolveResult) {
+    private static boolean sameVersion(ComponentIdResolveResult existing, ComponentIdResolveResult resolveResult) {
         if (existing.getFailure() == null && resolveResult.getFailure() == null) {
             return existing.getId().equals(resolveResult.getId());
         }
         return false;
     }
 
-    private boolean lowerVersion(ComponentIdResolveResult existing, ComponentIdResolveResult resolveResult) {
+    private static boolean lowerVersion(ComponentIdResolveResult existing, ComponentIdResolveResult resolveResult) {
         if (existing.getFailure() == null && resolveResult.getFailure() == null) {
             Version existingVersion = VERSION_PARSER.transform(existing.getModuleVersionId().getVersion());
             Version candidateVersion = VERSION_PARSER.transform(resolveResult.getModuleVersionId().getVersion());
@@ -170,8 +173,8 @@ class SelectorStateResolverResults {
         return false;
     }
 
-    private boolean included(ResolvableSelectorState dep, ComponentIdResolveResult candidate, boolean candidateIsFromLock) {
-        if (candidate.getFailure() != null) {
+    private static boolean selectorAcceptsCandidate(ResolvableSelectorState dep, ComponentIdResolveResult candidate, boolean candidateIsFromLock) {
+        if (hasFailure(candidate)) {
             return false;
         }
         ResolvedVersionConstraint versionConstraint = dep.getVersionConstraint();
@@ -187,9 +190,17 @@ class SelectorStateResolverResults {
                 return true;
             }
 
-            return versionSelector.accept(candidate.getModuleVersionId().getVersion());
+            String version = candidate.getModuleVersionId().getVersion();
+            if (StringUtils.isEmpty(version)) {
+                return false;
+            }
+            return versionSelector.accept(version);
         }
         return false;
+    }
+
+    private static boolean hasFailure(ComponentIdResolveResult candidate) {
+        return candidate.getFailure() != null;
     }
 
     public boolean isEmpty() {

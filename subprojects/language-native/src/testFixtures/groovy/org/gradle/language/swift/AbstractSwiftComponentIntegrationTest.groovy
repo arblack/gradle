@@ -22,9 +22,22 @@ import org.gradle.nativeplatform.fixtures.RequiresInstalledToolChain
 import org.gradle.nativeplatform.fixtures.ToolChainRequirement
 import org.gradle.nativeplatform.fixtures.app.SourceElement
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
+import org.hamcrest.CoreMatchers
 
 @RequiresInstalledToolChain(ToolChainRequirement.SWIFTC)
 abstract class AbstractSwiftComponentIntegrationTest extends AbstractNativeLanguageComponentIntegrationTest {
+    def "sources are built with Swift tools"() {
+        given:
+        makeSingleProject()
+        componentUnderTest.writeToProject(testDirectory)
+        settingsFile << "rootProject.name = '${componentUnderTest.projectName}'"
+
+        expect:
+        succeeds taskNameToAssembleDevelopmentBinary
+        result.assertTasksExecuted(tasksToAssembleDevelopmentBinaryOfComponentUnderTest, ":$taskNameToAssembleDevelopmentBinary")
+        assertComponentUnderTestWasBuilt()
+    }
+
     def "binaries have the right Swift version"() {
         given:
         makeSingleProject()
@@ -43,7 +56,6 @@ abstract class AbstractSwiftComponentIntegrationTest extends AbstractNativeLangu
         succeeds "verifyBinariesSwiftVersion"
     }
 
-    @RequiresInstalledToolChain(ToolChainRequirement.SWIFTC_4)
     def "throws exception when modifying Swift component source compatibility after the binary source compatibility is queried"() {
         given:
         makeSingleProject()
@@ -64,7 +76,7 @@ abstract class AbstractSwiftComponentIntegrationTest extends AbstractNativeLangu
         expect:
         fails "verifyBinariesSwiftVersion"
         failure.assertHasDescription("A problem occurred configuring root project 'swift-project'.")
-        failure.assertHasCause("The value for this property is final and cannot be changed any further.")
+        failure.assertThatCause(CoreMatchers.containsString("property 'sourceCompatibility' is final and cannot be changed any further."))
     }
 
     @RequiresInstalledToolChain(ToolChainRequirement.SWIFTC_4)
@@ -387,4 +399,6 @@ abstract class AbstractSwiftComponentIntegrationTest extends AbstractNativeLangu
     abstract List<String> getTasksToAssembleDevelopmentBinaryOfComponentUnderTest()
 
     abstract String getComponentName()
+
+    abstract void assertComponentUnderTestWasBuilt()
 }

@@ -16,7 +16,11 @@
 package org.gradle.api.internal;
 
 import groovy.lang.Closure;
-import org.gradle.api.*;
+import org.gradle.api.ExtensiblePolymorphicDomainObjectContainer;
+import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.Named;
+import org.gradle.api.NamedDomainObjectFactory;
+import org.gradle.api.Namer;
 import org.gradle.internal.Cast;
 import org.gradle.internal.reflect.Instantiator;
 import org.gradle.model.internal.core.NamedEntityInstantiator;
@@ -34,7 +38,7 @@ public class DefaultPolymorphicDomainObjectContainer<T> extends AbstractPolymorp
     }
 
     /**
-     * This internal constructor is used by the 'nebula.lint' plugin which we test as part of our ci pipeline.
+     * This internal constructor is used by the 'idea-ext' plugin which we use in our build.
      * */
     @Deprecated
     public DefaultPolymorphicDomainObjectContainer(Class<T> type, Instantiator instantiator) {
@@ -51,6 +55,7 @@ public class DefaultPolymorphicDomainObjectContainer<T> extends AbstractPolymorp
         return namedEntityInstantiator;
     }
 
+    @Override
     protected T doCreate(String name) {
         try {
             return namedEntityInstantiator.create(name, getType());
@@ -65,6 +70,7 @@ public class DefaultPolymorphicDomainObjectContainer<T> extends AbstractPolymorp
         }
     }
 
+    @Override
     protected <U extends T> U doCreate(String name, Class<U> type) {
         return namedEntityInstantiator.create(name, type);
     }
@@ -74,21 +80,26 @@ public class DefaultPolymorphicDomainObjectContainer<T> extends AbstractPolymorp
         registerFactory(castType, factory);
     }
 
+    @Override
     public <U extends T> void registerFactory(Class<U> type, NamedDomainObjectFactory<? extends U> factory) {
         namedEntityInstantiator.registerFactory(type, factory);
     }
 
+    @Override
     public <U extends T> void registerFactory(Class<U> type, final Closure<? extends U> factory) {
         registerFactory(type, new NamedDomainObjectFactory<U>() {
+            @Override
             public U create(String name) {
                 return factory.call(name);
             }
         });
     }
 
+    @Override
     public <U extends T> void registerBinding(Class<U> type, final Class<? extends U> implementationType) {
         registerFactory(type, new NamedDomainObjectFactory<U>() {
             boolean named = Named.class.isAssignableFrom(implementationType);
+            @Override
             public U create(String name) {
                 return named ? getInstantiator().newInstance(implementationType, name)
                         : getInstantiator().newInstance(implementationType);
@@ -96,6 +107,7 @@ public class DefaultPolymorphicDomainObjectContainer<T> extends AbstractPolymorp
         });
     }
 
+    @Override
     public Set<? extends Class<? extends T>> getCreateableTypes() {
         return namedEntityInstantiator.getCreatableTypes();
     }

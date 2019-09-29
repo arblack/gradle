@@ -29,34 +29,53 @@ import static org.gradle.performance.fixture.JfrToStacksConverter.Options
  */
 @CompileStatic
 @PackageScope
-class JfrFlameGraphGenerator {
+class JfrFlameGraphGenerator implements ProfilerFlameGraphGenerator {
 
     private JfrToStacksConverter stacksConverter = new JfrToStacksConverter()
     private FlameGraphGenerator flameGraphGenerator = new FlameGraphGenerator()
+    private final File flamesBaseDirectory
 
-    void generateGraphs(File jfrFile) {
-        IItemCollection recording = JfrLoaderToolkit.loadEvents(jfrFile)
-        File flamegraphDir = jfrFile.getParentFile()
+    JfrFlameGraphGenerator(File flamesBaseDirectory) {
+        this.flamesBaseDirectory = flamesBaseDirectory
+    }
+
+    @Override
+    void generateGraphs(BuildExperimentSpec experimentSpec) {
+        def jfrOutputDir = getJfrOutputDirectory(experimentSpec)
+        List<IItemCollection> recordings = jfrOutputDir.listFiles()
+            .findAll { it.name.endsWith(".jfr") }
+            .collect { JfrLoaderToolkit.loadEvents(it) }
+        File flamegraphDir = jfrOutputDir.getParentFile()
         EventType.values().each { EventType type ->
             DetailLevel.values().each { DetailLevel level ->
-                def stacks = generateStacks(flamegraphDir, recording, type, level)
+                def stacks = generateStacks(flamegraphDir, recordings, type, level)
                 generateFlameGraph(stacks, type, level)
                 generateIcicleGraph(stacks, type, level)
             }
         }
     }
 
-    private File generateStacks(File baseDir, IItemCollection recording, EventType type, DetailLevel level) {
+    @Override
+    File getJfrOutputDirectory(BuildExperimentSpec spec) {
+        def fileSafeName = spec.displayName.replaceAll('[^a-zA-Z0-9.-]', '-').replaceAll('-+', '-')
+        def baseDir = new File(flamesBaseDirectory, fileSafeName)
+        def outputDir = new File(baseDir, "jfr-recordings")
+        outputDir.mkdirs()
+        return outputDir
+    }
+
+    private File generateStacks(File baseDir, Collection<IItemCollection> recordings, EventType type, DetailLevel level) {
         File stacks = File.createTempFile("stacks", ".txt")
-        stacksConverter.convertToStacks(recording, stacks, new Options(type, level.isShowArguments(), level.isShowLineNumbers()))
+        stacksConverter.convertToStacks(recordings, stacks, new Options(type, level.isShowArguments(), level.isShowLineNumbers()))
         File sanitizedStacks = stacksFileName(baseDir, type, level)
         level.getSanitizer().sanitize(stacks, sanitizedStacks)
         stacks.delete()
         return sanitizedStacks
     }
 
-    void generateDifferentialGraphs(File baseDir) {
-        File[] experiments = baseDir.listFiles()
+    @Override
+    void generateDifferentialGraphs() {
+        File[] experiments = flamesBaseDirectory.listFiles()
         experiments.each { File experiment ->
             EventType.values().each { EventType type ->
                 DetailLevel.values().each { DetailLevel level ->

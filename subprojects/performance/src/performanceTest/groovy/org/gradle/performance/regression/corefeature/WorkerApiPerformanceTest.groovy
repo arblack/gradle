@@ -16,20 +16,20 @@
 
 package org.gradle.performance.regression.corefeature
 
-import org.gradle.performance.AbstractCrossVersionPerformanceTest
+import org.gradle.performance.AbstractCrossVersionGradleProfilerPerformanceTest
 import spock.lang.Unroll
 
-class WorkerApiPerformanceTest extends AbstractCrossVersionPerformanceTest {
+class WorkerApiPerformanceTest extends AbstractCrossVersionGradleProfilerPerformanceTest {
     def setup() {
-        runner.minimumVersion = '3.5'
-        runner.targetVersions = ["5.3-20190206000050+0000"]
+        runner.minimumVersion = '5.0'
+        runner.targetVersions = ["5.7-20190805220111+0000"]
         runner.testProject = "workerApiProject"
     }
 
     @Unroll
     def "executing tasks with no isolation with work=#workItems / workers=#workers"() {
         given:
-        runner.tasksToRun = ['clean', 'noIsolation', "--outputSize=$workItems"]
+        runner.tasksToRun = ['clean', 'noIsolation', "-PoutputSize=$workItems"]
         runner.args = [ "--max-workers=$workers" ]
 
         when:
@@ -53,7 +53,7 @@ class WorkerApiPerformanceTest extends AbstractCrossVersionPerformanceTest {
     @Unroll
     def "executing tasks with classloader isolation work=#workItems / workers=#workers"() {
         given:
-        runner.tasksToRun = ['clean', 'classloaderIsolation', "--outputSize=$workItems"]
+        runner.tasksToRun = ['clean', 'classloaderIsolation', "-PoutputSize=$workItems"]
         runner.args = [ "--max-workers=$workers" ]
 
         when:
@@ -77,7 +77,7 @@ class WorkerApiPerformanceTest extends AbstractCrossVersionPerformanceTest {
     @Unroll
     def "executing tasks with process isolation work=#workItems / workers=#workers"() {
         given:
-        runner.tasksToRun = ['clean', 'classloaderIsolation', "--outputSize=$workItems"]
+        runner.tasksToRun = ['clean', 'classloaderIsolation', "-PoutputSize=$workItems"]
         runner.args = [ "--max-workers=$workers" ]
 
         when:

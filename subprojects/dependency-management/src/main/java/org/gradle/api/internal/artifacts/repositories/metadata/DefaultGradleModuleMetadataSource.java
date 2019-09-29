@@ -15,6 +15,7 @@
  */
 package org.gradle.api.internal.artifacts.repositories.metadata;
 
+import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.artifacts.ModuleIdentifier;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ComponentResolvers;
@@ -24,6 +25,7 @@ import org.gradle.api.internal.artifacts.repositories.resolver.ResourcePattern;
 import org.gradle.api.internal.artifacts.repositories.resolver.VersionLister;
 import org.gradle.internal.component.external.model.DefaultModuleComponentArtifactMetadata;
 import org.gradle.internal.component.external.model.ModuleDependencyMetadata;
+import org.gradle.internal.component.external.model.MutableComponentVariant;
 import org.gradle.internal.component.external.model.MutableModuleComponentResolveMetadata;
 import org.gradle.internal.component.model.ComponentOverrideMetadata;
 import org.gradle.internal.component.model.DefaultIvyArtifactName;
@@ -41,12 +43,14 @@ import java.util.List;
  */
 public class DefaultGradleModuleMetadataSource extends AbstractMetadataSource<MutableModuleComponentResolveMetadata> {
     private final GradleModuleMetadataParser metadataParser;
+    private final GradleModuleMetadataCompatibilityConverter metadataCompatibilityConverter;
     private final MutableModuleMetadataFactory<? extends MutableModuleComponentResolveMetadata> mutableModuleMetadataFactory;
     private final boolean listVersions;
 
     @Inject
     public DefaultGradleModuleMetadataSource(GradleModuleMetadataParser metadataParser, MutableModuleMetadataFactory<? extends MutableModuleComponentResolveMetadata> mutableModuleMetadataFactory, boolean listVersions) {
         this.metadataParser = metadataParser;
+        this.metadataCompatibilityConverter = new GradleModuleMetadataCompatibilityConverter(metadataParser.getAttributesFactory(), metadataParser.getInstantiator());
         this.mutableModuleMetadataFactory = mutableModuleMetadataFactory;
         this.listVersions = listVersions;
     }
@@ -58,9 +62,18 @@ public class DefaultGradleModuleMetadataSource extends AbstractMetadataSource<Mu
         if (gradleMetadataArtifact != null) {
             MutableModuleComponentResolveMetadata metaDataFromResource = mutableModuleMetadataFactory.create(moduleComponentIdentifier);
             metadataParser.parse(gradleMetadataArtifact, metaDataFromResource);
+            validateGradleMetadata(metaDataFromResource);
+            metadataCompatibilityConverter.process(metaDataFromResource);
             return metaDataFromResource;
         }
         return null;
+    }
+
+    private static void validateGradleMetadata(MutableModuleComponentResolveMetadata metaDataFromResource) {
+        List<? extends MutableComponentVariant> mutableVariants = metaDataFromResource.getMutableVariants();
+        if (mutableVariants == null || mutableVariants.isEmpty()) {
+            throw new InvalidUserDataException("Gradle Module Metadata for module " + metaDataFromResource.getModuleVersionId() + " is invalid because it doesn't declare any variant");
+        }
     }
 
     @Override

@@ -21,16 +21,17 @@ import org.apache.commons.io.output.TeeOutputStream;
 import org.gradle.BuildResult;
 import org.gradle.StartParameter;
 import org.gradle.api.Task;
-import org.gradle.api.Transformer;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.execution.TaskExecutionGraph;
 import org.gradle.api.execution.TaskExecutionGraphListener;
 import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.internal.StartParameterInternal;
+import org.gradle.api.internal.TaskInternal;
 import org.gradle.api.internal.classpath.ModuleRegistry;
-import org.gradle.api.internal.file.DefaultFileCollectionFactory;
+import org.gradle.api.internal.file.FileCollectionFactory;
 import org.gradle.api.internal.file.TestFiles;
 import org.gradle.api.logging.configuration.ConsoleOutput;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.TaskState;
 import org.gradle.cli.CommandLineParser;
 import org.gradle.configuration.GradleLauncherMetaData;
@@ -68,7 +69,6 @@ import org.gradle.process.internal.JavaExecHandleBuilder;
 import org.gradle.test.fixtures.file.TestDirectoryProvider;
 import org.gradle.test.fixtures.file.TestFile;
 import org.gradle.testfixtures.internal.NativeServicesTestFixture;
-import org.gradle.tooling.internal.provider.serialization.ClassLoaderDetails;
 import org.gradle.tooling.internal.provider.serialization.DeserializeMap;
 import org.gradle.tooling.internal.provider.serialization.PayloadClassLoaderRegistry;
 import org.gradle.tooling.internal.provider.serialization.PayloadSerializer;
@@ -105,19 +105,18 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.gradle.integtests.fixtures.executer.OutputScrapingExecutionResult.flattenTaskPaths;
 import static org.gradle.util.Matchers.hasMessage;
 import static org.gradle.util.Matchers.isEmpty;
 import static org.gradle.util.Matchers.normalizedLineSeparators;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -208,24 +207,23 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
         return super.createGradleHandle();
     }
 
+    @Override
     protected Factory<JavaExecHandleBuilder> getExecHandleFactory() {
-        return new Factory<JavaExecHandleBuilder>() {
-            public JavaExecHandleBuilder create() {
-                NativeServicesTestFixture.initialize();
-                GradleInvocation invocation = buildInvocation();
-                JavaExecHandleBuilder builder = TestFiles.execFactory().newJavaExec();
-                builder.workingDir(getWorkingDir());
-                builder.setExecutable(new File(getJavaHome(), "bin/java"));
-                builder.classpath(getExecHandleFactoryClasspath());
-                builder.jvmArgs(invocation.launcherJvmArgs);
-                builder.environment(invocation.environmentVars);
+        return () -> {
+            NativeServicesTestFixture.initialize();
+            GradleInvocation invocation = buildInvocation();
+            JavaExecHandleBuilder builder = TestFiles.execFactory().newJavaExec();
+            builder.workingDir(getWorkingDir());
+            builder.setExecutable(new File(getJavaHome(), "bin/java"));
+            builder.classpath(getExecHandleFactoryClasspath());
+            builder.jvmArgs(invocation.launcherJvmArgs);
+            builder.environment(invocation.environmentVars);
 
-                builder.setMain(Main.class.getName());
-                builder.args(invocation.args);
-                builder.setStandardInput(connectStdIn());
+            builder.setMain(Main.class.getName());
+            builder.args(invocation.args);
+            builder.setStandardInput(connectStdIn());
 
-                return builder;
-            }
+            return builder;
         };
     }
 
@@ -240,7 +238,7 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
     }
 
     private Collection<File> cleanup(List<File> files) {
-        List<File> result = new LinkedList<File>();
+        List<File> result = new LinkedList<>();
         String prefix = Jvm.current().getJavaHome().getPath() + File.separator;
         for (File file : files) {
             if (file.getPath().startsWith(prefix)) {
@@ -253,12 +251,10 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
     }
 
     private File getClasspathManifestJarFor(Collection<File> classpath) {
-        String cpString = CollectionUtils.join(" ", CollectionUtils.collect(classpath, new Transformer<String, File>() {
-            @Override
-            public String transform(File file) {
-                return file.toURI().toString();
-            }
-        }));
+        String cpString = classpath.stream()
+            .map(File::toURI)
+            .map(Object::toString)
+            .collect(Collectors.joining(" "));
         File cpJar = new File(getDefaultTmpDir(), "daemon-classpath-manifest-" + HashUtil.createCompactMD5(cpString) + ".jar");
         if (!cpJar.isFile()) {
             Manifest manifest = new Manifest();
@@ -284,10 +280,10 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
         Properties originalSysProperties = new Properties();
         originalSysProperties.putAll(System.getProperties());
         File originalUserDir = new File(originalSysProperties.getProperty("user.dir")).getAbsoluteFile();
-        Map<String, String> originalEnv = new HashMap<String, String>(System.getenv());
+        Map<String, String> originalEnv = new HashMap<>(System.getenv());
 
         GradleInvocation invocation = buildInvocation();
-        Set<String> changedEnvVars = new HashSet<String>(invocation.environmentVars.keySet());
+        Set<String> changedEnvVars = new HashSet<>(invocation.environmentVars.keySet());
 
         try {
             return executeBuild(invocation, outputStream, errorStream, listener);
@@ -328,17 +324,15 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
         Map<String, String> implicitJvmSystemProperties = getImplicitJvmSystemProperties();
         System.getProperties().putAll(implicitJvmSystemProperties);
 
-        // TODO: Fix tests that rely on this being set before we process arguments like this...
-        StartParameterInternal startParameter = new StartParameterInternal();
-        startParameter.setCurrentDir(getWorkingDir());
-
         // TODO: Reuse more of CommandlineActionFactory
         CommandLineParser parser = new CommandLineParser();
         BuildLayoutFactory buildLayoutFactory = new BuildLayoutFactory();
-        DefaultFileCollectionFactory fileCollectionFactory = new DefaultFileCollectionFactory();
+        FileCollectionFactory fileCollectionFactory = TestFiles.fileCollectionFactory();
         ParametersConverter parametersConverter = new ParametersConverter(buildLayoutFactory, fileCollectionFactory);
         parametersConverter.configure(parser);
-        final Parameters parameters = new Parameters(startParameter, fileCollectionFactory);
+        final Parameters parameters = new Parameters(fileCollectionFactory);
+        parameters.getStartParameter().setCurrentDir(getWorkingDir());
+        parameters.getLayout().setCurrentDir(getWorkingDir());
         parametersConverter.convert(parser.parse(getAllArgs()), parameters);
 
         BuildActionExecuter<BuildActionParameters> actionExecuter = GLOBAL_SERVICES.get(BuildActionExecuter.class);
@@ -348,6 +342,7 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
 
         try {
             // TODO: Reuse more of BuildActionsFactory
+            StartParameterInternal startParameter = parameters.getStartParameter();
             BuildAction action = new ExecuteBuildAction(startParameter);
             BuildActionParameters buildActionParameters = createBuildActionParameters(startParameter);
             BuildRequestContext buildRequestContext = createBuildRequestContext();
@@ -397,6 +392,7 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
             new NoOpBuildEventConsumer());
     }
 
+    @Override
     public void assertCanExecute() {
         assertNull(getExecutable());
         String defaultEncoding = getImplicitJvmSystemProperties().get("file.encoding");
@@ -431,11 +427,12 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
     }
 
     private static class BuildListenerImpl implements TaskExecutionGraphListener, InternalListener {
-        private final List<String> executedTasks = new CopyOnWriteArrayList<String>();
-        private final Set<String> skippedTasks = new CopyOnWriteArraySet<String>();
+        private final List<String> executedTasks = new CopyOnWriteArrayList<>();
+        private final Set<String> skippedTasks = new CopyOnWriteArraySet<>();
 
+        @Override
         public void graphPopulated(TaskExecutionGraph graph) {
-            List<Task> planned = new ArrayList<Task>(graph.getAllTasks());
+            List<Task> planned = new ArrayList<>(graph.getAllTasks());
             graph.addTaskExecutionListener(new TaskListenerImpl(planned, executedTasks, skippedTasks));
         }
     }
@@ -451,46 +448,49 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
             this.skippedTasks = skippedTasks;
         }
 
+        @Override
         public void beforeExecute(Task task) {
             if (!planned.contains(task)) {
                 System.out.println("Warning: " + task + " was executed even though it is not part of the task plan!");
             }
 
             String taskPath = path(task);
-            if (taskPath.startsWith(":buildSrc:")) {
-                return;
-            }
-
             executedTasks.add(taskPath);
         }
 
+        @Override
         public void afterExecute(Task task, TaskState state) {
             String taskPath = path(task);
-            if (taskPath.startsWith(":buildSrc:")) {
-                return;
-            }
-
             if (state.getSkipped()) {
                 skippedTasks.add(taskPath);
             }
         }
 
         private String path(Task task) {
-            return task.getProject().getGradle().getParent() == null ? task.getPath() : ":" + task.getProject().getRootProject().getName() + task.getPath();
+            return ((TaskInternal)task).getIdentityPath().getPath();
         }
     }
 
     public static class InProcessExecutionResult implements ExecutionResult {
-        private final List<String> executedTasks;
-        private final Set<String> skippedTasks;
-        private final OutputScrapingExecutionResult outputResult;
+        protected static final Spec<String> NOT_BUILD_SRC_TASK = t -> !t.startsWith(":buildSrc:");
+        protected final List<String> executedTasks;
+        protected final Set<String> skippedTasks;
+        private final ExecutionResult outputResult;
 
-        InProcessExecutionResult(List<String> executedTasks, Set<String> skippedTasks, OutputScrapingExecutionResult outputResult) {
+        InProcessExecutionResult(List<String> executedTasks, Set<String> skippedTasks, ExecutionResult outputResult) {
             this.executedTasks = executedTasks;
             this.skippedTasks = skippedTasks;
             this.outputResult = outputResult;
         }
 
+        @Override
+        public ExecutionResult getIgnoreBuildSrc() {
+            List<String> executedTasks = CollectionUtils.filter(this.executedTasks, NOT_BUILD_SRC_TASK);
+            Set<String> skippedTasks = CollectionUtils.filter(this.skippedTasks, NOT_BUILD_SRC_TASK);
+            return new InProcessExecutionResult(executedTasks, skippedTasks, outputResult.getIgnoreBuildSrc());
+        }
+
+        @Override
         public String getOutput() {
             return outputResult.getOutput();
         }
@@ -515,6 +515,7 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
             return outputResult.getGroupedOutput();
         }
 
+        @Override
         public ExecutionResult assertOutputEquals(String expectedOutput, boolean ignoreExtraLines, boolean ignoreLineOrder) {
             outputResult.assertOutputEquals(expectedOutput, ignoreExtraLines, ignoreLineOrder);
             return this;
@@ -555,24 +556,29 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
             return this;
         }
 
+        @Override
         public String getError() {
             return outputResult.getError();
         }
 
-        public List<String> getExecutedTasks() {
-            return new ArrayList<String>(executedTasks);
+        @Override
+        public String getOutputLineThatContains(String text) {
+            return outputResult.getOutputLineThatContains(text);
         }
 
+        @Override
         public ExecutionResult assertTasksExecutedInOrder(Object... taskPaths) {
             Set<String> expected = TaskOrderSpecs.exact(taskPaths).getTasks();
-            assertThat(executedTasks, containsInAnyOrder(expected.toArray()));
+            assertTasksExecuted(expected);
+            assertTaskOrder(taskPaths);
             outputResult.assertTasksExecutedInOrder(taskPaths);
             return this;
         }
 
+        @Override
         public ExecutionResult assertTasksExecuted(Object... taskPaths) {
-            Set<String> flattenedTasks = new TreeSet<String>(flattenTaskPaths(taskPaths));
-            assertThat(executedTasks, containsInAnyOrder(flattenedTasks.toArray()));
+            Set<String> flattenedTasks = new TreeSet<>(flattenTaskPaths(taskPaths));
+            assertEquals(new TreeSet<>(executedTasks), new TreeSet<>(flattenedTasks));
             outputResult.assertTasksExecuted(flattenedTasks);
             return this;
         }
@@ -600,24 +606,20 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
 
         @Override
         public ExecutionResult assertTaskOrder(Object... taskPaths) {
-            Set<String> expected = TaskOrderSpecs.exact(taskPaths).getTasks();
-            assertThat(executedTasks, hasItems(expected.toArray(new String[]{})));
+            TaskOrderSpecs.exact(taskPaths).assertMatches(-1, executedTasks);
             outputResult.assertTaskOrder(taskPaths);
             return this;
         }
 
-        public Set<String> getSkippedTasks() {
-            return new TreeSet<String>(skippedTasks);
-        }
-
         @Override
         public ExecutionResult assertTasksSkipped(Object... taskPaths) {
-            Set<String> expected = new TreeSet<String>(flattenTaskPaths(taskPaths));
+            Set<String> expected = new TreeSet<>(flattenTaskPaths(taskPaths));
             assertThat(skippedTasks, equalTo(expected));
             outputResult.assertTasksSkipped(expected);
             return this;
         }
 
+        @Override
         public ExecutionResult assertTaskSkipped(String taskPath) {
             assertThat(skippedTasks, hasItem(taskPath));
             outputResult.assertTaskSkipped(taskPath);
@@ -626,13 +628,14 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
 
         @Override
         public ExecutionResult assertTasksNotSkipped(Object... taskPaths) {
-            Set<String> expected = new TreeSet<String>(flattenTaskPaths(taskPaths));
+            Set<String> expected = new TreeSet<>(flattenTaskPaths(taskPaths));
             Set<String> notSkipped = getNotSkippedTasks();
             assertThat(notSkipped, equalTo(expected));
             outputResult.assertTasksNotSkipped(expected);
             return this;
         }
 
+        @Override
         public ExecutionResult assertTaskNotSkipped(String taskPath) {
             assertThat(getNotSkippedTasks(), hasItem(taskPath));
             outputResult.assertTaskNotSkipped(taskPath);
@@ -640,7 +643,7 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
         }
 
         private Set<String> getNotSkippedTasks() {
-            Set<String> notSkipped = new TreeSet<String>(executedTasks);
+            Set<String> notSkipped = new TreeSet<>(executedTasks);
             notSkipped.removeAll(skippedTasks);
             return notSkipped;
         }
@@ -648,13 +651,13 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
 
     private static class InProcessExecutionFailure extends InProcessExecutionResult implements ExecutionFailure {
         private static final Pattern LOCATION_PATTERN = Pattern.compile("(?m)^((\\w+ )+'.+') line: (\\d+)$");
-        private final OutputScrapingExecutionFailure outputFailure;
+        private final ExecutionFailure outputFailure;
         private final Throwable failure;
-        private final List<String> fileNames = new ArrayList<String>();
-        private final List<String> lineNumbers = new ArrayList<String>();
-        private final List<String> descriptions = new ArrayList<String>();
+        private final List<String> fileNames = new ArrayList<>();
+        private final List<String> lineNumbers = new ArrayList<>();
+        private final List<String> descriptions = new ArrayList<>();
 
-        InProcessExecutionFailure(List<String> tasks, Set<String> skippedTasks, OutputScrapingExecutionFailure outputFailure, Throwable failure) {
+        InProcessExecutionFailure(List<String> tasks, Set<String> skippedTasks, ExecutionFailure outputFailure, Throwable failure) {
             super(tasks, skippedTasks, outputFailure);
             this.outputFailure = outputFailure;
             this.failure = failure;
@@ -680,18 +683,28 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
             }
         }
 
+        @Override
+        public InProcessExecutionFailure getIgnoreBuildSrc() {
+            List<String> executedTasks = CollectionUtils.filter(this.executedTasks, NOT_BUILD_SRC_TASK);
+            Set<String> skippedTasks = CollectionUtils.filter(this.skippedTasks, NOT_BUILD_SRC_TASK);
+            return new InProcessExecutionFailure(executedTasks, skippedTasks, outputFailure.getIgnoreBuildSrc(), failure);
+        }
+
+        @Override
         public ExecutionFailure assertHasLineNumber(int lineNumber) {
             outputFailure.assertHasLineNumber(lineNumber);
             assertThat(this.lineNumbers, hasItem(equalTo(String.valueOf(lineNumber))));
             return this;
         }
 
+        @Override
         public ExecutionFailure assertHasFileName(String filename) {
             outputFailure.assertHasFileName(filename);
             assertThat(this.fileNames, hasItem(equalTo(filename)));
             return this;
         }
 
+        @Override
         public ExecutionFailure assertHasResolution(String resolution) {
             outputFailure.assertHasResolution(resolution);
             return this;
@@ -708,14 +721,16 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
             return this;
         }
 
+        @Override
         public ExecutionFailure assertHasCause(String description) {
             assertThatCause(startsWith(description));
             return this;
         }
 
-        public ExecutionFailure assertThatCause(Matcher<String> matcher) {
+        @Override
+        public ExecutionFailure assertThatCause(Matcher<? super String> matcher) {
             outputFailure.assertThatCause(matcher);
-            List<Throwable> causes = new ArrayList<Throwable>();
+            List<Throwable> causes = new ArrayList<>();
             extractCauses(failure, causes);
             Matcher<Throwable> messageMatcher = hasMessage(normalizedLineSeparators(matcher));
             for (Throwable cause : causes) {
@@ -744,7 +759,7 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
         public ExecutionFailure assertHasNoCause(String description) {
             outputFailure.assertHasNoCause(description);
             Matcher<Throwable> matcher = hasMessage(containsString(description));
-            List<Throwable> causes = new ArrayList<Throwable>();
+            List<Throwable> causes = new ArrayList<>();
             extractCauses(failure, causes);
             for (Throwable cause : causes) {
                 if (matcher.matches(cause)) {
@@ -754,6 +769,7 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
             return this;
         }
 
+        @Override
         public ExecutionFailure assertHasNoCause() {
             outputFailure.assertHasNoCause();
             if (failure instanceof LocationAwareException) {
@@ -765,22 +781,26 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
             return this;
         }
 
+        @Override
         public ExecutionFailure assertHasDescription(String context) {
             assertThatDescription(startsWith(context));
             return this;
         }
 
-        public ExecutionFailure assertThatDescription(Matcher<String> matcher) {
+        @Override
+        public ExecutionFailure assertThatDescription(Matcher<? super String> matcher) {
             outputFailure.assertThatDescription(matcher);
             assertThat(descriptions, hasItem(normalizedLineSeparators(matcher)));
             return this;
         }
 
+        @Override
         public ExecutionFailure assertTestsFailed() {
             new DetailedExecutionFailure(this).assertTestsFailed();
             return this;
         }
 
+        @Override
         public DependencyResolutionFailure assertResolutionFailure(String configurationPath) {
             return new DependencyResolutionFailure(this, configurationPath);
         }
@@ -794,12 +814,9 @@ public class InProcessGradleExecuter extends DaemonGradleExecuter {
 
         @Override
         public DeserializeMap newDeserializeSession() {
-            return new DeserializeMap() {
-                @Override
-                public Class<?> resolveClass(ClassLoaderDetails classLoaderDetails, String className) throws ClassNotFoundException {
-                    // Assume everything is loaded into the current classloader
-                    return Class.forName(className);
-                }
+            return (classLoaderDetails, className) -> {
+                // Assume everything is loaded into the current classloader
+                return Class.forName(className);
             };
         }
     }

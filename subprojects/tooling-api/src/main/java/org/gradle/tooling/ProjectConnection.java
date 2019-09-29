@@ -15,7 +15,6 @@
  */
 package org.gradle.tooling;
 
-import org.gradle.api.Incubating;
 import java.io.Closeable;
 
 /**
@@ -154,12 +153,12 @@ public interface ProjectConnection extends Closeable {
      * @return The builder.
      * @since 4.8
      */
-    @Incubating
     BuildActionExecuter.Builder action();
 
     /**
      * Closes this connection. Blocks until any pending operations are complete. Once this method has returned, no more notifications will be delivered by any threads.
      * @since 1.0-milestone-3
      */
+    @Override
     void close();
 }

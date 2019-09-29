@@ -16,21 +16,35 @@
 
 package org.gradle.performance.regression.android
 
+import org.gradle.performance.AbstractCrossVersionGradleProfilerPerformanceTest
+import org.gradle.performance.categories.SlowPerformanceRegressionTest
+import org.gradle.profiler.mutations.AbstractCleanupMutator
+import org.gradle.profiler.mutations.ClearArtifactTransformCacheMutator
+import org.junit.experimental.categories.Category
+import spock.lang.Ignore
 import spock.lang.Unroll
 
-class RealLifeAndroidBuildPerformanceTest extends AbstractAndroidPerformanceTest {
+import static org.gradle.performance.regression.android.AndroidTestProject.K9_ANDROID
+import static org.gradle.performance.regression.android.AndroidTestProject.LARGE_ANDROID_BUILD
+import static org.gradle.performance.regression.android.IncrementalAndroidTestProject.SANTA_TRACKER_KOTLIN
 
+class RealLifeAndroidBuildPerformanceTest extends AbstractCrossVersionGradleProfilerPerformanceTest {
+
+    def setup() {
+        runner.args = ['-Dcom.android.build.gradle.overrideVersionCheck=true']
+    }
+
+    @Ignore("Re-enable after rebaselining")
     @Unroll
     def "#tasks on #testProject"() {
         given:
-        runner.testProject = testProject
+        testProject.configure(runner)
         runner.tasksToRun = tasks.split(' ')
-        runner.gradleOpts = ["-Xms$memory", "-Xmx$memory"]
         runner.args = parallel ? ['-Dorg.gradle.parallel=true'] : []
         runner.warmUpRuns = warmUpRuns
         runner.runs = runs
-        runner.minimumVersion = "5.1.1"
-        runner.targetVersions = ["5.4-20190403012714+0000"]
+        runner.minimumVersion = "5.6.1" // AGP 3.6 requires 5.6.1+
+        runner.targetVersions = ["6.0-20190823180744+0000"]
 
         when:
         def result = runner.run()
@@ -39,13 +53,78 @@ class RealLifeAndroidBuildPerformanceTest extends AbstractAndroidPerformanceTest
         result.assertCurrentVersionHasNotRegressed()
 
         where:
-        testProject         | memory | parallel | warmUpRuns | runs | tasks
-        'k9AndroidBuild'           | '1g' | false | null | null | 'help'
-        'k9AndroidBuild'           | '1g' | false | null | null | 'assembleDebug'
-//        'k9AndroidBuild'    | '1g'   | false    | null       | null | 'clean k9mail:assembleDebug'
-        'largeAndroidBuild'        | '5g' | true  | null | null | 'help'
-        'largeAndroidBuild'        | '5g' | true  | null | null | 'assembleDebug'
-        'largeAndroidBuild'        | '5g' | true  | 2    | 8    | 'clean phthalic:assembleDebug'
-        'santaTrackerAndroidBuild' | '1g' | true  | null | null | 'assembleDebug'
+        testProject          | parallel | warmUpRuns | runs | tasks
+        K9_ANDROID           | false    | null       | null | 'help'
+        K9_ANDROID           | false    | null       | null | 'assembleDebug'
+//        K9_ANDROID    | false    | null       | null | 'clean k9mail:assembleDebug'
+        LARGE_ANDROID_BUILD  | true     | null       | null | 'help'
+        LARGE_ANDROID_BUILD  | true     | null       | null | 'assembleDebug'
+        LARGE_ANDROID_BUILD  | true     | 2          | 8    | 'clean phthalic:assembleDebug'
+        SANTA_TRACKER_KOTLIN | true     | null       | null | 'assembleDebug'
+    }
+
+    @Category(SlowPerformanceRegressionTest)
+    @Unroll
+    def "clean #tasks on #testProject with clean transforms cache"() {
+        given:
+        testProject.configure(runner)
+        runner.tasksToRun = tasks.split(' ')
+        runner.args = ['-Dorg.gradle.parallel=true']
+        runner.warmUpRuns = warmUpRuns
+        runner.cleanTasks = ["clean"]
+        runner.runs = runs
+        runner.minimumVersion = "5.4"
+        runner.targetVersions = ["5.7-20190807220120+0000"]
+        runner.addBuildMutator { invocationSettings ->
+            new ClearArtifactTransformCacheMutator(invocationSettings.getGradleUserHome(), AbstractCleanupMutator.CleanupSchedule.BUILD)
+        }
+
+        when:
+        def result = runner.run()
+
+        then:
+        result.assertCurrentVersionHasNotRegressed()
+
+        where:
+        testProject          | warmUpRuns | runs | tasks
+        LARGE_ANDROID_BUILD  | 2          | 8    | 'phthalic:assembleDebug'
+        LARGE_ANDROID_BUILD  | 2          | 8    | 'assembleDebug'
+        SANTA_TRACKER_KOTLIN | null       | null | 'assembleDebug'
+    }
+
+    @Unroll
+    def "abi change on #testProject"() {
+        given:
+        testProject.configureForAbiChange(runner)
+        runner.args = ['-Dorg.gradle.parallel=true']
+        runner.minimumVersion = "5.4"
+        runner.targetVersions = ["6.0-20190823180744+0000"]
+
+        when:
+        def result = runner.run()
+
+        then:
+        result.assertCurrentVersionHasNotRegressed()
+
+        where:
+        testProject << [SANTA_TRACKER_KOTLIN]
+    }
+
+    @Unroll
+    def "non-abi change on #testProject"() {
+        given:
+        testProject.configureForNonAbiChange(runner)
+        runner.args = ['-Dorg.gradle.parallel=true']
+        runner.minimumVersion = "5.4"
+        runner.targetVersions = ["6.0-20190823180744+0000"]
+
+        when:
+        def result = runner.run()
+
+        then:
+        result.assertCurrentVersionHasNotRegressed()
+
+        where:
+        testProject << [SANTA_TRACKER_KOTLIN]
     }
 }

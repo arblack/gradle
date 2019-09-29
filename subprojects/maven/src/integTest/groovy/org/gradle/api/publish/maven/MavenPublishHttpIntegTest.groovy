@@ -49,7 +49,7 @@ class MavenPublishHttpIntegTest extends AbstractMavenPublishIntegTest {
         group = "org.gradle"
         name = "publish"
         version = "2"
-        module = mavenRemoteRepo.module(group, name, version)
+        module = mavenRemoteRepo.module(group, name, version).withModuleMetadata()
 
         settingsFile << 'rootProject.name = "publish"'
     }
@@ -126,8 +126,6 @@ class MavenPublishHttpIntegTest extends AbstractMavenPublishIntegTest {
 
         server.authenticationScheme = authScheme
         module.artifact.expectPut(401, credentials)
-        module.pom.expectPut(401, credentials)
-        module.moduleMetadata.expectPut(401, credentials)
 
         when:
         fails 'publish'
@@ -135,7 +133,6 @@ class MavenPublishHttpIntegTest extends AbstractMavenPublishIntegTest {
         then:
         failure.assertHasDescription("Execution failed for task ':publishMavenPublicationToMavenRepository'.")
         failure.assertHasCause("Failed to publish publication 'maven' to repository 'maven'")
-        failure.assertHasCause("Could not write to resource '${module.artifact.uri}")
         failure.assertHasCause("Could not PUT '${module.artifact.uri}'. Received status code 401 from server: Unauthorized")
 
         where:
@@ -148,8 +145,6 @@ class MavenPublishHttpIntegTest extends AbstractMavenPublishIntegTest {
         buildFile << publicationBuild(version, group, mavenRemoteRepo.uri)
         server.authenticationScheme = authScheme
         module.artifact.expectPut(401)
-        module.pom.expectPut(401)
-        module.moduleMetadata.expectPut(401)
 
         when:
         fails 'publish'
@@ -157,7 +152,6 @@ class MavenPublishHttpIntegTest extends AbstractMavenPublishIntegTest {
         then:
         failure.assertHasDescription("Execution failed for task ':publishMavenPublicationToMavenRepository'.")
         failure.assertHasCause("Failed to publish publication 'maven' to repository 'maven'")
-        failure.assertHasCause("Could not write to resource '${module.artifact.uri}")
         failure.assertHasCause("Could not PUT '${module.artifact.uri}'. Received status code 401 from server: Unauthorized")
 
         where:
@@ -200,8 +194,8 @@ class MavenPublishHttpIntegTest extends AbstractMavenPublishIntegTest {
         PasswordCredentials credentials = new DefaultPasswordCredentials('username', 'password')
         buildFile.text = publicationBuild(version, group, new URI("${redirectServer.uri}/repo"), credentials)
 
-        redirectServer.expectGetRedirected(module.rootMetaData.path, "${server.uri}${module.rootMetaData.path}")
-        module.rootMetaData.expectGetMissing(credentials)
+        redirectServer.expectGetRedirected(module.rootMetaData.path, "${server.uri}${module.rootMetaData.path}", credentials)
+        module.rootMetaData.expectGetMissing()
 
         expectModulePublishViaRedirect(module, server.getUri(), redirectServer, credentials)
 
@@ -241,9 +235,6 @@ class MavenPublishHttpIntegTest extends AbstractMavenPublishIntegTest {
 
         and:
         module.rootMetaData.expectGet()
-        module.rootMetaData.sha1.expectGet()
-        module.rootMetaData.expectGet()
-        module.rootMetaData.sha1.expectGet()
         module.rootMetaData.expectPublish()
 
         and:
@@ -262,6 +253,31 @@ class MavenPublishHttpIntegTest extends AbstractMavenPublishIntegTest {
 
         module.rootMetaData.verifyChecksums()
         module.rootMetaData.versions == ["2", "3"]
+    }
+
+    def "retries artifact upload for transient network error"() {
+        given:
+        buildFile << publicationBuild(version, group, mavenRemoteRepo.uri)
+
+        module.artifact.expectPutBroken()
+        module.artifact.expectPutBroken()
+        module.artifact.expectPublish()
+
+        module.rootMetaData.expectGetMissing()
+        module.rootMetaData.expectPutBroken()
+        module.rootMetaData.expectPublish()
+
+        module.pom.expectPutBroken()
+        module.pom.expectPublish()
+
+        module.moduleMetadata.expectPutBroken()
+        module.moduleMetadata.expectPublish()
+
+        when:
+        succeeds 'publish'
+
+        then:
+        module.assertPublishedAsJavaModule()
     }
 
     private String publicationBuild(String version, String group, URI uri, PasswordCredentials credentials = null) {
@@ -305,8 +321,8 @@ class MavenPublishHttpIntegTest extends AbstractMavenPublishIntegTest {
         String redirectUri = targetServerUri.toString()
         [module.artifact, module.pom, module.rootMetaData, module.moduleMetadata].each { artifact ->
             [artifact, artifact.sha1, artifact.md5].each { innerArtifact ->
-                httpServer.expectPutRedirected(innerArtifact.path, "${redirectUri}${innerArtifact.path}")
-                innerArtifact.expectPut(credentials)
+                httpServer.expectPutRedirected(innerArtifact.path, "${redirectUri}${innerArtifact.path}", credentials)
+                innerArtifact.expectPut()
             }
         }
     }

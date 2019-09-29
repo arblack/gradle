@@ -21,7 +21,6 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileCollection
 import org.gradle.api.internal.artifacts.dependencies.DefaultSelfResolvingDependency
 import org.gradle.api.internal.file.FileCollectionFactory
-import org.gradle.api.internal.file.FileCollectionInternal
 import org.gradle.api.internal.initialization.ScriptHandlerInternal
 import org.gradle.api.internal.project.ProjectInternal
 import org.gradle.api.tasks.CacheableTask
@@ -39,7 +38,7 @@ import org.gradle.internal.classpath.DefaultClassPath
 import org.gradle.internal.concurrent.CompositeStoppable.stoppable
 import org.gradle.internal.exceptions.LocationAwareException
 import org.gradle.internal.hash.HashCode
-import org.gradle.internal.resource.BasicTextResourceLoader
+import org.gradle.internal.resource.DefaultTextFileResourceLoader
 
 import org.gradle.kotlin.dsl.accessors.AccessorFormats
 import org.gradle.kotlin.dsl.accessors.TypedProjectSchema
@@ -239,7 +238,7 @@ abstract class GeneratePrecompiledScriptPluginAccessors : ClassPathSensitiveCode
     private
     fun scriptSourceFor(plugin: PrecompiledScriptPlugin) =
         TextResourceScriptSource(
-            BasicTextResourceLoader().loadFile("Precompiled script plugin", plugin.scriptFile)
+            DefaultTextFileResourceLoader().loadFile("Precompiled script plugin", plugin.scriptFile)
         )
 
     private
@@ -393,7 +392,7 @@ class SyntheticProjectSchemaBuilder(
             DefaultSelfResolvingDependency(
                 project
                     .serviceOf<FileCollectionFactory>()
-                    .fixed("precompiled-script-plugins-accessors-classpath", rootProjectClassPath) as FileCollectionInternal
+                    .fixed("precompiled-script-plugins-accessors-classpath", rootProjectClassPath)
             )
         )
     }
@@ -403,7 +402,7 @@ class SyntheticProjectSchemaBuilder(
         val targetProjectScope = (project as ProjectInternal).classLoaderScope
         project.serviceOf<PluginRequestApplicator>().applyPlugins(
             pluginRequests,
-            project.buildscript as ScriptHandlerInternal,
+            project.buildscript,
             project.pluginManager,
             targetProjectScope
         )

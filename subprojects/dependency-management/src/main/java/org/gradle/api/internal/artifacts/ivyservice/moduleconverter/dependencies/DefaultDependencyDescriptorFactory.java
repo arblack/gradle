@@ -42,16 +42,18 @@ public class DefaultDependencyDescriptorFactory implements DependencyDescriptorF
         this.dependencyDescriptorFactories = WrapUtil.toList(dependencyDescriptorFactories);
     }
 
+    @Override
     public LocalOriginDependencyMetadata createDependencyDescriptor(ComponentIdentifier componentId, String clientConfiguration, AttributeContainer attributes, ModuleDependency dependency) {
         IvyDependencyDescriptorFactory factoryInternal = findFactoryForDependency(dependency);
         return factoryInternal.createDependencyDescriptor(componentId, clientConfiguration, attributes, dependency);
     }
 
+    @Override
     public LocalOriginDependencyMetadata createDependencyConstraintDescriptor(ComponentIdentifier componentId, String clientConfiguration, AttributeContainer attributes, DependencyConstraint dependencyConstraint) {
         ModuleComponentSelector selector = DefaultModuleComponentSelector.newSelector(
             DefaultModuleIdentifier.newId(nullToEmpty(dependencyConstraint.getGroup()), nullToEmpty(dependencyConstraint.getName())), dependencyConstraint.getVersionConstraint(), dependencyConstraint.getAttributes(), ImmutableList.of());
         return new LocalComponentDependencyMetadata(componentId, selector, clientConfiguration, attributes, dependencyConstraint.getAttributes(), null,
-                Collections.<IvyArtifactName>emptyList(), Collections.<ExcludeMetadata>emptyList(), ((DependencyConstraintInternal)dependencyConstraint).isForce(), false, false, true, dependencyConstraint.getReason());
+                Collections.<IvyArtifactName>emptyList(), Collections.<ExcludeMetadata>emptyList(), ((DependencyConstraintInternal)dependencyConstraint).isForce(), false, false, true, false, dependencyConstraint.getReason());
     }
 
     private IvyDependencyDescriptorFactory findFactoryForDependency(ModuleDependency dependency) {

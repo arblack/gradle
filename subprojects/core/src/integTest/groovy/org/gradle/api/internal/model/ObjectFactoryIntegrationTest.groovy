@@ -47,6 +47,7 @@ class ObjectFactoryIntegrationTest extends AbstractIntegrationSpec {
             }
             
             class CustomTask extends DefaultTask {
+                @Internal
                 Thing thing
                 
                 @javax.inject.Inject
@@ -93,9 +94,27 @@ class ObjectFactoryIntegrationTest extends AbstractIntegrationSpec {
             }
             
             def t = objects.newInstance(Thing)
+            assert t.files.toString() == "file collection"
             assert t.files.files.empty
             t.files.from('a.txt')
             assert t.files as List == [file('a.txt')]
+"""
+
+        expect:
+        succeeds()
+    }
+
+    def "plugin can create instance of interface with read-only Property<T> property"() {
+        buildFile << """
+            interface Thing {
+                Property<String> getValue()
+            }
+            
+            def t = objects.newInstance(Thing)
+            assert t.value.toString() == "property 'value'"
+            assert !t.value.present
+            t.value = 'abc'
+            assert t.value.get() == 'abc'
 """
 
         expect:
@@ -494,6 +513,70 @@ class ObjectFactoryIntegrationTest extends AbstractIntegrationSpec {
         buildFile << """
             def dirSet = project.objects.sourceDirectorySet("sources", "some source files")
             assert dirSet != null
+        """
+
+        expect:
+        succeeds()
+    }
+
+    def "plugin can create NamedDomainObjectContainer which can create decorated elements of type that has public constructor"() {
+        given:
+        buildFile << """
+            abstract class NamedThing implements Named {
+                final String name
+                abstract Property<String> getProp()
+                NamedThing(String name) {
+                    this.name = name
+                }
+            }
+
+            def container = project.objects.domainObjectContainer(NamedThing)
+            assert container != null
+            container.configure {
+                foo {
+                    prop = 'abc'
+                }
+            }
+            assert container.size() == 1
+            def element = container.getByName('foo')
+            assert element.name == 'foo'
+            assert element.prop.get() == 'abc'
+        """
+
+        expect:
+        succeeds()
+    }
+
+    def "plugin can create NamedDomainObjectContainer instances with factory"() {
+        given:
+        buildFile << """
+            class NamedThing implements Named {
+                final String name
+                NamedThing(String name) {
+                    this.name = name
+                }
+            }
+
+            def container = project.objects.domainObjectContainer(NamedThing) {
+                return new NamedThing("prefix-" + it)
+            }
+            assert container != null
+            def element = container.create("foo")
+            assert element.name == 'prefix-foo'
+            assert container.size() == 1
+        """
+
+        expect:
+        succeeds()
+    }
+
+    def "plugin can create DomainObjectSet instances"() {
+        given:
+        buildFile << """
+            def domainObjectSet = project.objects.domainObjectSet(String)
+            assert domainObjectSet != null
+            assert domainObjectSet.add('foo')
+            assert domainObjectSet.size() == 1
         """
 
         expect:

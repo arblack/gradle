@@ -51,6 +51,7 @@ public class DefaultListenerBuildOperationDecorator implements ListenerBuildOper
     // we don't decorate everything in BuildListener, just projectsLoaded/projectsEvaluated
     private static final ImmutableSet<String> UNDECORATED_METHOD_NAMES = ImmutableSet.of(
         "buildStarted",
+        "beforeSettings",
         "settingsEvaluated",
         "buildFinished"
     );
@@ -63,22 +64,25 @@ public class DefaultListenerBuildOperationDecorator implements ListenerBuildOper
         this.userCodeApplicationContext = userCodeApplicationContext;
     }
 
+    @Override
     public <T> Action<T> decorate(String registrationPoint, Action<T> action) {
         UserCodeApplicationId applicationId = userCodeApplicationContext.current();
         if (applicationId == null || action instanceof InternalListener) {
             return action;
         }
-        return new BuildOperationEmittingAction<T>(applicationId, registrationPoint, action);
+        return new BuildOperationEmittingAction<>(applicationId, registrationPoint, action);
     }
 
+    @Override
     public <T> Closure<T> decorate(String registrationPoint, Closure<T> closure) {
         UserCodeApplicationId applicationId = userCodeApplicationContext.current();
         if (applicationId == null) {
             return closure;
         }
-        return new BuildOperationEmittingClosure<T>(applicationId, registrationPoint, closure);
+        return new BuildOperationEmittingClosure<>(applicationId, registrationPoint, closure);
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public <T> T decorate(String registrationPoint, Class<T> targetClass, T listener) {
         if (listener instanceof InternalListener || !isSupported(listener)) {
@@ -96,6 +100,7 @@ public class DefaultListenerBuildOperationDecorator implements ListenerBuildOper
         return targetClass.cast(Proxy.newProxyInstance(listenerClass.getClassLoader(), allInterfaces.toArray(new Class[0]), handler));
     }
 
+    @Override
     public Object decorateUnknownListener(String registrationPoint, Object listener) {
         return decorate(registrationPoint, Object.class, listener);
     }
@@ -144,12 +149,7 @@ public class DefaultListenerBuildOperationDecorator implements ListenerBuildOper
             buildOperationExecutor.run(new Operation(applicationId, registrationPoint) {
                 @Override
                 public void run(final BuildOperationContext context) {
-                    userCodeApplicationContext.reapply(applicationId, new Runnable() {
-                        @Override
-                        public void run() {
-                            delegate.execute(arg);
-                        }
-                    });
+                    userCodeApplicationContext.reapply(applicationId, () -> delegate.execute(arg));
                     context.setResult(RESULT);
                 }
             });
@@ -169,18 +169,16 @@ public class DefaultListenerBuildOperationDecorator implements ListenerBuildOper
             this.registrationPoint = registrationPoint;
         }
 
+        @SuppressWarnings("unused")
         public void doCall(final Object... args) {
             buildOperationExecutor.run(new Operation(applicationId, registrationPoint) {
                 @Override
                 public void run(final BuildOperationContext context) {
-                    userCodeApplicationContext.reapply(applicationId, new Runnable() {
-                        @Override
-                        public void run() {
-                            int numClosureArgs = delegate.getMaximumNumberOfParameters();
-                            Object[] finalArgs = numClosureArgs < args.length ? Arrays.copyOf(args, numClosureArgs) : args;
-                            delegate.call(finalArgs);
-                            context.setResult(RESULT);
-                        }
+                    userCodeApplicationContext.reapply(applicationId, () -> {
+                        int numClosureArgs = delegate.getMaximumNumberOfParameters();
+                        Object[] finalArgs = numClosureArgs < args.length ? Arrays.copyOf(args, numClosureArgs) : args;
+                        delegate.call(finalArgs);
+                        context.setResult(RESULT);
                     });
                 }
             });
@@ -233,17 +231,14 @@ public class DefaultListenerBuildOperationDecorator implements ListenerBuildOper
                 buildOperationExecutor.run(new Operation(applicationId, registrationPoint) {
                     @Override
                     public void run(final BuildOperationContext context) {
-                        userCodeApplicationContext.reapply(applicationId, new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    method.invoke(delegate, args);
-                                    context.setResult(RESULT);
-                                } catch (InvocationTargetException e) {
-                                    throw UncheckedException.unwrapAndRethrow(e);
-                                } catch (Exception e) {
-                                    throw UncheckedException.throwAsUncheckedException(e);
-                                }
+                        userCodeApplicationContext.reapply(applicationId, () -> {
+                            try {
+                                method.invoke(delegate, args);
+                                context.setResult(RESULT);
+                            } catch (InvocationTargetException e) {
+                                throw UncheckedException.unwrapAndRethrow(e);
+                            } catch (Exception e) {
+                                throw UncheckedException.throwAsUncheckedException(e);
                             }
                         });
                     }

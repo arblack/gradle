@@ -1091,12 +1091,12 @@ task generate(type: TransformerTask) {
         when:
         succeeds "customTask"
         then:
-        skippedTasks.empty
+        noneSkipped()
 
         when:
         succeeds "customTask", "--info"
         then:
-        skippedTasks.empty
+        noneSkipped()
         output.contains "The type of task ':customTask' was loaded with an unknown classloader (class 'CustomTask_Decorated')."
     }
 
@@ -1138,12 +1138,12 @@ task generate(type: TransformerTask) {
         when:
         succeeds "customTask"
         then:
-        skippedTasks.empty
+        noneSkipped()
 
         when:
         succeeds "customTask", "--info"
         then:
-        skippedTasks.empty
+        noneSkipped()
         output.contains "Additional action for task ':customTask': was loaded with an unknown classloader (class 'CustomTaskAction')."
     }
 
@@ -1211,13 +1211,13 @@ task generate(type: TransformerTask) {
         succeeds 'myTask'
 
         then:
-        nonSkippedTasks.contains(':myTask')
+        executedAndNotSkipped(':myTask')
 
         when:
         succeeds('myTask')
 
         then:
-        skippedTasks.contains(':myTask')
+        skipped(':myTask')
     }
 
     def "task with no actions is skipped even if it has inputs"() {
@@ -1254,6 +1254,7 @@ task generate(type: TransformerTask) {
     
     task myTask (type: MyTask){
         project.ext.inputDirs.split(',').each { inputs.dir(it) }
+        outputs.upToDateWhen { true }
     }
 '''
 
@@ -1297,12 +1298,17 @@ task generate(type: TransformerTask) {
             task myTask(type: MyTask)
         '''
 
+        executer.expectDeprecationWarning()
+
         when:
         run 'myTask', '-Pprivate=first'
 
         then:
         def outputFile = file('build/output.txt')
         outputFile.text == 'first'
+        output.contains("Property 'myPrivateInput' is private and annotated with @Input. This behaviour has been deprecated and is scheduled to be removed in Gradle 7.0.")
+
+        executer.expectDeprecationWarning()
 
         when:
         run 'myTask', '-Pprivate=second'
@@ -1310,6 +1316,9 @@ task generate(type: TransformerTask) {
         then:
         skipped ':myTask'
         outputFile.text == 'first'
+        output.contains("Property 'myPrivateInput' is private and annotated with @Input. This behaviour has been deprecated and is scheduled to be removed in Gradle 7.0.")
+
+        executer.expectDeprecationWarning()
 
         when:
         outputFile.delete()
@@ -1318,6 +1327,7 @@ task generate(type: TransformerTask) {
         then:
         executedAndNotSkipped ':myTask'
         outputFile.text == 'second'
+        output.contains("Property 'myPrivateInput' is private and annotated with @Input. This behaviour has been deprecated and is scheduled to be removed in Gradle 7.0.")
     }
 
     @ToBeImplemented("Private getters should be ignored")

@@ -17,14 +17,23 @@
 package org.gradle.workers.internal;
 
 import org.gradle.api.Describable;
+import org.gradle.workers.WorkAction;
+import org.gradle.workers.WorkParameters;
 
+import java.io.File;
 import java.io.Serializable;
 
-public interface ActionExecutionSpec extends Serializable, Describable {
-    Class<?> getImplementationClass();
+public interface ActionExecutionSpec<T extends WorkParameters> extends Serializable, Describable {
+    Class<? extends WorkAction<T>> getImplementationClass();
 
     @Override
     String getDisplayName();
 
-    Object[] getParams(ClassLoader classLoader);
+    T getParameters();
+
+    ClassLoaderStructure getClassLoaderStructure();
+
+    boolean isInternalServicesRequired();
+
+    File getBaseDir();
 }

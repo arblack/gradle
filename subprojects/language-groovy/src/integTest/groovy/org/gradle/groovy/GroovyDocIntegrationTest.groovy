@@ -33,7 +33,7 @@ class GroovyDocIntegrationTest extends MultiVersionIntegrationSpec {
             ${mavenCentralRepository()}
 
             dependencies {
-                compile "org.codehaus.groovy:groovy:${version}"
+                implementation "org.codehaus.groovy:groovy:${version}"
             }
         """
 
@@ -46,6 +46,12 @@ class GroovyDocIntegrationTest extends MultiVersionIntegrationSpec {
             package pkg
 
             class Thing {}
+        """
+
+        buildFile << """
+            groovydoc {
+                noVersionStamp = false
+            }
         """
 
         then:

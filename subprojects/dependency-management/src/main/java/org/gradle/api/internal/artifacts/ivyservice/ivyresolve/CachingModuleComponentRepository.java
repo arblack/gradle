@@ -15,7 +15,6 @@
  */
 package org.gradle.api.internal.artifacts.ivyservice.ivyresolve;
 
-import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.ArtifactIdentifier;
 import org.gradle.api.artifacts.ComponentMetadataSupplierDetails;
 import org.gradle.api.artifacts.ModuleIdentifier;
@@ -45,6 +44,7 @@ import org.gradle.internal.component.external.model.ModuleDependencyMetadata;
 import org.gradle.internal.component.model.ComponentArtifactMetadata;
 import org.gradle.internal.component.model.ComponentOverrideMetadata;
 import org.gradle.internal.component.model.ComponentResolveMetadata;
+import org.gradle.internal.component.model.ConfigurationMetadata;
 import org.gradle.internal.component.model.ModuleSource;
 import org.gradle.internal.resolve.ArtifactNotFoundException;
 import org.gradle.internal.resolve.ArtifactResolveException;
@@ -55,7 +55,6 @@ import org.gradle.internal.resolve.result.BuildableModuleComponentMetaDataResolv
 import org.gradle.internal.resolve.result.BuildableModuleVersionListingResolveResult;
 import org.gradle.internal.resolve.result.DefaultBuildableArtifactSetResolveResult;
 import org.gradle.util.BuildCommencedTimeProvider;
-import org.gradle.util.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,6 +62,7 @@ import java.io.File;
 import java.math.BigInteger;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A ModuleComponentRepository that loads and saves resolution results in the dependency resolution cache.
@@ -101,10 +101,12 @@ public class CachingModuleComponentRepository implements ModuleComponentReposito
         this.metadataProcessor = metadataProcessor;
     }
 
+    @Override
     public String getId() {
         return delegate.getId();
     }
 
+    @Override
     public String getName() {
         return delegate.getName();
     }
@@ -114,10 +116,12 @@ public class CachingModuleComponentRepository implements ModuleComponentReposito
         return delegate.toString();
     }
 
+    @Override
     public ModuleComponentRepositoryAccess getLocalAccess() {
         return locateInCacheRepositoryAccess;
     }
 
+    @Override
     public ModuleComponentRepositoryAccess getRemoteAccess() {
         return resolveAndCacheRepositoryAccess;
     }
@@ -159,11 +163,10 @@ public class CachingModuleComponentRepository implements ModuleComponentReposito
             ModuleVersionsCache.CachedModuleVersionList cachedModuleVersionList = moduleVersionsCache.getCachedModuleResolution(delegate, moduleId);
             if (cachedModuleVersionList != null) {
                 Set<String> versionList = cachedModuleVersionList.getModuleVersions();
-                Set<ModuleVersionIdentifier> versions = CollectionUtils.collect(versionList, new Transformer<ModuleVersionIdentifier, String>() {
-                    public ModuleVersionIdentifier transform(String original) {
-                        return DefaultModuleVersionIdentifier.newId(moduleId, original);
-                    }
-                });
+                Set<ModuleVersionIdentifier> versions = versionList
+                    .stream()
+                    .map(original -> DefaultModuleVersionIdentifier.newId(moduleId, original))
+                    .collect(Collectors.toSet());
                 if (cachePolicy.mustRefreshVersionList(moduleId, versions, cachedModuleVersionList.getAgeMillis())) {
                     LOGGER.debug("Version listing in dynamic revision cache is expired: will perform fresh resolve of '{}' in '{}'", requested, delegate.getName());
                 } else {
@@ -246,11 +249,11 @@ public class CachingModuleComponentRepository implements ModuleComponentReposito
         }
 
         @Override
-        public void resolveArtifacts(ComponentResolveMetadata component, BuildableComponentArtifactsResolveResult result) {
+        public void resolveArtifacts(ComponentResolveMetadata component, ConfigurationMetadata variant, BuildableComponentArtifactsResolveResult result) {
             final CachingModuleSource cachedModuleSource = (CachingModuleSource) component.getSource();
 
             // First try to determine the artifacts in-memory (e.g using the metadata): don't use the cache in this case
-            delegate.getLocalAccess().resolveArtifacts(component.withSource(cachedModuleSource.getDelegate()), result);
+            delegate.getLocalAccess().resolveArtifacts(component.withSource(cachedModuleSource.getDelegate()), variant, result);
             if (result.hasResult()) {
                 return;
             }
@@ -402,9 +405,9 @@ public class CachingModuleComponentRepository implements ModuleComponentReposito
         }
 
         @Override
-        public void resolveArtifacts(ComponentResolveMetadata component, BuildableComponentArtifactsResolveResult result) {
+        public void resolveArtifacts(ComponentResolveMetadata component, ConfigurationMetadata variant, BuildableComponentArtifactsResolveResult result) {
             final CachingModuleSource moduleSource = (CachingModuleSource) component.getSource();
-            delegate.getRemoteAccess().resolveArtifacts(component.withSource(moduleSource.getDelegate()), result);
+            delegate.getRemoteAccess().resolveArtifacts(component.withSource(moduleSource.getDelegate()), variant, result);
 
             if (result.getFailure() == null) {
                 FixedComponentArtifacts artifacts = (FixedComponentArtifacts) result.getResult();

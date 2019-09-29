@@ -16,7 +16,6 @@
 
 package org.gradle.api.publish.maven
 
-import org.gradle.integtests.fixtures.FeaturePreviewsFixture
 import org.gradle.integtests.fixtures.publish.maven.AbstractMavenPublishIntegTest
 import org.gradle.util.SetSystemProperties
 import org.junit.Rule
@@ -371,14 +370,13 @@ class MavenPublishPomCustomizationIntegTest extends AbstractMavenPublishIntegTes
         then:
         failure.assertHasDescription("Execution failed for task ':publishMavenPublicationToMavenRepository'.")
         failure.assertHasCause("Failed to publish publication 'maven' to repository 'maven'")
-        failure.assertHasCause("Invalid publication 'maven': supplied version does not match POM file (cannot edit version directly in the POM file).")
+        failure.assertHasCause("Invalid publication 'maven': supplied version (1.0) does not match value from POM file (2.0). Cannot edit version directly in the POM file.")
     }
 
     def "withXml should not loose Gradle metadata marker"() {
         settingsFile << """
             rootProject.name = 'customizePom'
         """
-        FeaturePreviewsFixture.enableGradleMetadata(settingsFile)
         buildFile << """
             apply plugin: 'java-library'
             apply plugin: 'maven-publish'

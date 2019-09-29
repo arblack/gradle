@@ -37,7 +37,7 @@ class ScalaAnnotationProcessingIntegrationTest extends AbstractIntegrationSpec {
         skipped(':compileJava')
         executedAndNotSkipped(':compileScala')
         result.assertHasErrorOutput('error: package org.gradle does not exist')
-        failure.assertHasCause('javac returned nonzero exit code')
+        failure.assertHasCause('javac returned non-zero exit code')
     }
 
     def "does not process annotation for Java class if annotation processor is only available on classpath"() {
@@ -127,7 +127,7 @@ class ScalaAnnotationProcessingIntegrationTest extends AbstractIntegrationSpec {
             ${mavenCentralRepository()}
             
             dependencies {
-                compile 'org.scala-lang:scala-library:2.11.12'
+                implementation 'org.scala-lang:scala-library:2.11.12'
             }
         """
     }

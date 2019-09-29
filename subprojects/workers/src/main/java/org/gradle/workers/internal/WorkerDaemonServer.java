@@ -16,39 +16,90 @@
 
 package org.gradle.workers.internal;
 
-import org.gradle.cache.internal.CrossBuildInMemoryCacheFactory;
-import org.gradle.internal.instantiation.DefaultInstantiatorFactory;
-import org.gradle.internal.instantiation.InjectAnnotationHandler;
+import org.gradle.api.internal.CollectionCallbackActionDecorator;
+import org.gradle.api.internal.MutationGuards;
+import org.gradle.api.internal.collections.DefaultDomainObjectCollectionFactory;
+import org.gradle.api.internal.collections.DomainObjectCollectionFactory;
+import org.gradle.api.internal.file.FileCollectionFactory;
+import org.gradle.api.internal.file.FileResolver;
+import org.gradle.api.internal.resources.DefaultResourceHandler;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.resources.ReadableResource;
+import org.gradle.api.resources.ResourceHandler;
+import org.gradle.api.resources.TextResourceFactory;
+import org.gradle.initialization.LegacyTypesSupport;
+import org.gradle.internal.hash.ClassLoaderHierarchyHasher;
+import org.gradle.internal.hash.FileHasher;
+import org.gradle.internal.hash.HashCode;
 import org.gradle.internal.instantiation.InstantiatorFactory;
+import org.gradle.internal.isolation.IsolatableFactory;
+import org.gradle.internal.reflect.Instantiator;
 import org.gradle.internal.service.DefaultServiceRegistry;
 import org.gradle.internal.service.ServiceRegistry;
 import org.gradle.internal.service.ServiceRegistryBuilder;
 import org.gradle.internal.service.scopes.WorkerSharedGlobalScopeServices;
+import org.gradle.internal.service.scopes.WorkerSharedProjectScopeServices;
+import org.gradle.internal.snapshot.impl.DefaultValueSnapshotter;
+import org.gradle.internal.state.ManagedFactoryRegistry;
+import org.gradle.process.internal.ExecFactory;
+import org.gradle.process.internal.worker.request.RequestArgumentSerializers;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
-import java.util.Collections;
+import java.io.File;
 
-public class WorkerDaemonServer extends DefaultWorkerServer {
+public class WorkerDaemonServer implements WorkerProtocol {
+    private final ServiceRegistry internalServices;
+    private final LegacyTypesSupport legacyTypesSupport;
+    private final ActionExecutionSpecFactory actionExecutionSpecFactory;
+    private final InstantiatorFactory instantiatorFactory;
+    private ClassLoader workerClassLoader;
+
     @Inject
-    public WorkerDaemonServer(ServiceRegistry serviceRegistry) {
-        super(createWorkerDaemonServices(serviceRegistry));
+    public WorkerDaemonServer(ServiceRegistry parentServices, RequestArgumentSerializers argumentSerializers) {
+        this.internalServices = createWorkerDaemonServices(parentServices);
+        this.legacyTypesSupport = internalServices.get(LegacyTypesSupport.class);
+        this.actionExecutionSpecFactory = internalServices.get(ActionExecutionSpecFactory.class);
+        this.instantiatorFactory = internalServices.get(InstantiatorFactory.class);
+        argumentSerializers.add(WorkerDaemonMessageSerializer.create());
     }
 
     static ServiceRegistry createWorkerDaemonServices(ServiceRegistry parent) {
-        ServiceRegistry workerSharedGlobalServices = ServiceRegistryBuilder.builder()
+        return ServiceRegistryBuilder.builder()
+                .displayName("worker daemon services")
                 .parent(parent)
                 .provider(new WorkerSharedGlobalScopeServices())
+                .provider(new WorkerDaemonServices())
                 .build();
-        return new WorkerDaemonServices(workerSharedGlobalServices);
     }
 
     @Override
     public DefaultWorkResult execute(ActionExecutionSpec spec) {
         try {
-            return super.execute(spec);
+            ServiceRegistry workServices = new WorkerPublicServicesBuilder(new WorkerProjectServices(spec.getBaseDir(), internalServices))
+                    .withInternalServicesVisible(spec.isInternalServicesRequired())
+                    .build();
+            Worker worker = getIsolatedClassloaderWorker(spec.getClassLoaderStructure(), workServices);
+            return worker.execute(spec);
         } catch (Throwable t) {
             return new DefaultWorkResult(true, t);
         }
+    }
+
+    private Worker getIsolatedClassloaderWorker(ClassLoaderStructure classLoaderStructure, ServiceRegistry workServices) {
+        if (classLoaderStructure instanceof FlatClassLoaderStructure) {
+            return new FlatClassLoaderWorker(this.getClass().getClassLoader(), workServices, actionExecutionSpecFactory, instantiatorFactory);
+        } else {
+            return new IsolatedClassloaderWorker(getWorkerClassLoader(classLoaderStructure), workServices, actionExecutionSpecFactory, instantiatorFactory, true);
+        }
+    }
+
+    private ClassLoader getWorkerClassLoader(ClassLoaderStructure classLoaderStructure) {
+        if (workerClassLoader == null) {
+            this.workerClassLoader = IsolatedClassloaderWorker.createIsolatedWorkerClassloader(classLoaderStructure, this.getClass().getClassLoader(), legacyTypesSupport);
+        }
+        return workerClassLoader;
     }
 
     @Override
@@ -56,17 +107,91 @@ public class WorkerDaemonServer extends DefaultWorkerServer {
         return "WorkerDaemonServer{}";
     }
 
-    private static class WorkerDaemonServices extends DefaultServiceRegistry {
-        public WorkerDaemonServices(ServiceRegistry... parents) {
-            super("WorkerDaemonServices", parents);
+    private static class WorkerDaemonServices {
+        IsolatableSerializerRegistry createIsolatableSerializerRegistry(ClassLoaderHierarchyHasher classLoaderHierarchyHasher, ManagedFactoryRegistry managedFactoryRegistry) {
+            return new IsolatableSerializerRegistry(classLoaderHierarchyHasher, managedFactoryRegistry);
         }
 
-        InstantiatorFactory createInstantiatorFactory(CrossBuildInMemoryCacheFactory cacheFactory) {
-            return new DefaultInstantiatorFactory(cacheFactory, Collections.<InjectAnnotationHandler>emptyList());
+        ActionExecutionSpecFactory createActionExecutionSpecFactory(IsolatableFactory isolatableFactory, IsolatableSerializerRegistry serializerRegistry) {
+            return new DefaultActionExecutionSpecFactory(isolatableFactory, serializerRegistry);
         }
 
-        WorkerDaemonServices createWorkerDaemonServices() {
-            return this;
+        DefaultValueSnapshotter createValueSnapshotter(ClassLoaderHierarchyHasher classLoaderHierarchyHasher, ManagedFactoryRegistry managedFactoryRegistry) {
+            return new DefaultValueSnapshotter(classLoaderHierarchyHasher, managedFactoryRegistry);
+        }
+
+        ClassLoaderHierarchyHasher createClassLoaderHierarchyHasher() {
+            // Return a dummy implementation of this as creating a real hasher drags ~20 more services
+            // along with it, and a hasher isn't actually needed on the worker process side at the moment.
+            return new ClassLoaderHierarchyHasher() {
+                @Nullable
+                @Override
+                public HashCode getClassLoaderHash(@Nonnull ClassLoader classLoader) {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        }
+
+        DomainObjectCollectionFactory createDomainObjectCollectionFactory(InstantiatorFactory instantiatorFactory, ServiceRegistry services) {
+            return new DefaultDomainObjectCollectionFactory(instantiatorFactory, services, CollectionCallbackActionDecorator.NOOP, MutationGuards.identity());
+        }
+    }
+
+    static class WorkerProjectServices extends DefaultServiceRegistry {
+        private final File baseDir;
+
+        public WorkerProjectServices(File baseDir, ServiceRegistry... parents) {
+            super("worker file services for "+ baseDir.getAbsolutePath(), parents);
+            this.baseDir = baseDir;
+            addProvider(new WorkerSharedProjectScopeServices(baseDir));
+        }
+
+        protected Instantiator createInstantiator(InstantiatorFactory instantiatorFactory) {
+            return instantiatorFactory.injectAndDecorateLenient(this);
+        }
+
+        protected ExecFactory createExecFactory(org.gradle.process.internal.ExecFactory execFactory, FileResolver fileResolver, FileCollectionFactory fileCollectionFactory, Instantiator instantiator, ObjectFactory objectFactory) {
+            return execFactory.forContext(fileResolver, fileCollectionFactory, instantiator, objectFactory);
+        }
+
+        protected DefaultResourceHandler.Factory createResourceHandlerFactory() {
+            // We use a dummy implementation of this as creating a real resource handler would require us to add
+            // an additional jar to the worker runtime startup and a resource handler isn't actually needed in
+            // the worker process.
+            ResourceHandler resourceHandler = new ResourceHandler() {
+                @Override
+                public ReadableResource gzip(Object path) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public ReadableResource bzip2(Object path) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public TextResourceFactory getText() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+
+            return fileOperations -> resourceHandler;
+        }
+
+        FileHasher createFileHasher() {
+            // Return a dummy implementation of this as creating a real file hasher drags numerous other services
+            // along with it, and a file hasher isn't actually needed on the worker process side at the moment.
+            return new FileHasher() {
+                @Override
+                public HashCode hash(File file) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public HashCode hash(File file, long length, long lastModified) {
+                    throw new UnsupportedOperationException();
+                }
+            };
         }
     }
 }

@@ -15,6 +15,7 @@
  */
 package org.gradle.internal.component.model;
 
+import com.google.common.collect.ImmutableList;
 import org.gradle.internal.component.local.model.LocalComponentArtifactMetadata;
 import org.gradle.internal.component.local.model.LocalConfigurationMetadata;
 import org.gradle.internal.component.local.model.LocalFileDependencyMetadata;
@@ -45,12 +46,13 @@ public class DefaultSelectedByVariantMatchingLocalConfigurationMetadata extends 
         return delegate.getFiles();
     }
 
+    @Override
     public List<? extends LocalOriginDependencyMetadata> getDependencies() {
         return delegate.getDependencies();
     }
 
     @Override
-    public List<? extends LocalComponentArtifactMetadata> getArtifacts() {
+    public ImmutableList<? extends LocalComponentArtifactMetadata> getArtifacts() {
         return delegate.getArtifacts();
     }
 }

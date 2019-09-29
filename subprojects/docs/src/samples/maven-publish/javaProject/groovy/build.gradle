@@ -7,35 +7,31 @@ group = 'org.gradle.sample'
 version = '1.0'
 
 dependencies {
-   compile 'commons-collections:commons-collections:3.2.2'
+    implementation 'commons-collections:commons-collections:3.2.2'
 }
 
 repositories {
     mavenCentral()
 }
 
-// tag::publish-custom-artifact[]
-task sourcesJar(type: Jar) {
-    archiveClassifier = 'sources'
-    from sourceSets.main.allJava
+// tag::publish-modify-component[]
+java {
+    publishJavadoc()
+    publishSources()
 }
 
-task javadocJar(type: Jar) {
-    archiveClassifier = 'javadoc'
-    from javadoc.destinationDir
+components.java.withVariantsFromConfiguration(configurations.sourcesElements) {
+    skip()
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
-
-            artifact sourcesJar
-            artifact javadocJar
         }
     }
 }
-// end::publish-custom-artifact[]
+// end::publish-modify-component[]
 
 // tag::repo-url-from-variable[]
 // tag::repo-url-from-project-property[]

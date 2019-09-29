@@ -36,7 +36,7 @@ class CompositeBuildDependencyGraphIntegrationTest extends AbstractCompositeBuil
         buildB = multiProjectBuild("buildB", ['b1', 'b2']) {
             buildFile << """
                 allprojects {
-                    apply plugin: 'java'
+                    apply plugin: 'java-library'
                     version "2.0"
 
                     repositories {
@@ -72,8 +72,8 @@ class CompositeBuildDependencyGraphIntegrationTest extends AbstractCompositeBuil
 
         buildA.buildFile << """
             dependencies {
-                compile "org.different:buildB:1.0"
-                compile "org.test:buildC:1.0"
+                implementation "org.different:buildB:1.0"
+                implementation "org.test:buildC:1.0"
             }
 """
 
@@ -91,7 +91,7 @@ class CompositeBuildDependencyGraphIntegrationTest extends AbstractCompositeBuil
         given:
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildB:1.0"
+                implementation "org.test:buildB:1.0"
             }
 """
 
@@ -116,7 +116,7 @@ class CompositeBuildDependencyGraphIntegrationTest extends AbstractCompositeBuil
 
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildB:1.0"
+                implementation "org.test:buildB:1.0"
             }
 """
 
@@ -145,8 +145,8 @@ class CompositeBuildDependencyGraphIntegrationTest extends AbstractCompositeBuil
         withArgs(["--include-build", '../buildB', "--include-build", '../buildC'])
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildB:1.0"
-                compile "org.test:buildC:1.0"
+                implementation "org.test:buildB:1.0"
+                implementation "org.test:buildC:1.0"
             }
 """
         includedBuilds = []
@@ -171,8 +171,8 @@ class CompositeBuildDependencyGraphIntegrationTest extends AbstractCompositeBuil
         given:
         buildA.buildFile << """
             dependencies {
-                compile "org.test:b1:1.0"
-                compile "org.test:b2:1.0"
+                implementation "org.test:b1:1.0"
+                implementation "org.test:b2:1.0"
             }
 """
 
@@ -196,12 +196,12 @@ class CompositeBuildDependencyGraphIntegrationTest extends AbstractCompositeBuil
         given:
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildB:1.0"
+                implementation "org.test:buildB:1.0"
             }
 """
         buildB.buildFile << """
             dependencies {
-                compile "org.test:b2:1.0"
+                implementation "org.test:b2:1.0"
             }
 """
 
@@ -227,12 +227,12 @@ class CompositeBuildDependencyGraphIntegrationTest extends AbstractCompositeBuil
         mavenRepo.module("org.test", "transitive2").dependsOn(transitive1).publish()
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildB:1.0"
+                implementation "org.test:buildB:1.0"
             }
 """
         buildB.buildFile << """
             dependencies {
-                compile "org.test:transitive2:1.0"
+                implementation "org.test:transitive2:1.0"
             }
 """
 
@@ -255,7 +255,7 @@ class CompositeBuildDependencyGraphIntegrationTest extends AbstractCompositeBuil
         given:
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildB:1.0"
+                implementation "org.test:buildB:1.0"
             }
 """
         buildB.settingsFile << """
@@ -263,12 +263,12 @@ include ':b1:b11'
 """
         buildB.buildFile << """
             dependencies {
-                compile project(':b1')
+                implementation project(':b1')
             }
 
             project(":b1") {
                 dependencies {
-                    compile project("b11") // Relative project path
+                    implementation project("b11") // Relative project path
                 }
             }
 """
@@ -294,12 +294,12 @@ include ':b1:b11'
         mavenRepo.module("org.test", "transitive2").dependsOn(transitive1).publish()
         buildA.buildFile << """
             dependencies {
-                compile("org.test:buildB:1.0")
+                implementation("org.test:buildB:1.0")
             }
 """
         buildB.buildFile << """
             dependencies {
-                compile("org.test:transitive2:1.0")  {
+                implementation("org.test:transitive2:1.0")  {
                     exclude module: 'transitive1'
                 }
             }
@@ -322,12 +322,12 @@ include ':b1:b11'
         given:
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildB:1.0"
+                implementation "org.test:buildB:1.0"
             }
 """
         buildB.buildFile << """
             dependencies {
-                compile "org.test:buildC:1.0"
+                implementation "org.test:buildC:1.0"
             }
 """
         def buildC = singleProjectBuild("buildC") {
@@ -359,7 +359,7 @@ include ':b1:b11'
 
         buildA.buildFile << """
             dependencies {
-                compile "org.external:external-dep:1.0"
+                implementation "org.external:external-dep:1.0"
             }
 """
 
@@ -380,11 +380,12 @@ include ':b1:b11'
         given:
         buildA.buildFile << """
             dependencies {
-                compile("org.test:buildB:1.0") { force = true }
+                implementation("org.test:buildB:1.0") { force = true }
             }
 """
 
         when:
+        executer.expectDeprecationWarning()
         checkDependencies()
 
         then:
@@ -402,9 +403,9 @@ include ':b1:b11'
 
         buildA.buildFile << """
             dependencies {
-                compile "org.external:external-dep:1.0"
+                implementation "org.external:external-dep:1.0"
             }
-            configurations.compile.resolutionStrategy.force("org.test:buildB:5.0")
+            configurations.runtimeClasspath.resolutionStrategy.force("org.test:buildB:5.0")
 """
 
         when:
@@ -429,9 +430,9 @@ include ':b1:b11'
 
         buildA.buildFile << """
             dependencies {
-                compile "org.external:external-dep:1.0"
+                implementation "org.external:external-dep:1.0"
             }
-            configurations.compile.resolutionStrategy {
+            configurations.runtimeClasspath.resolutionStrategy {
                 eachDependency { DependencyResolveDetails details ->
                     if (details.requested.name == 'something') {
                         details.useTarget "org.test:buildB:1.0"
@@ -464,7 +465,7 @@ include ':b1:b11'
         given:
         buildA.buildFile << """
             dependencies {
-                compile "group.requires.subproject.evaluation:b1:1.0"
+                implementation "group.requires.subproject.evaluation:b1:1.0"
             }
 """
 
@@ -497,8 +498,8 @@ afterEvaluate {
         given:
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildB:1.0"
-                compile "org.test:buildC:1.0"
+                implementation "org.test:buildB:1.0"
+                implementation "org.test:buildC:1.0"
             }
 """
 
@@ -542,8 +543,8 @@ afterEvaluate {
 
         buildA.buildFile << """
             dependencies {
-                compile "org.test:b1:1.0"
-                compile "org.test:c1:1.0"
+                implementation "org.test:b1:1.0"
+                implementation "org.test:c1:1.0"
             }
 """
 
@@ -577,7 +578,7 @@ afterEvaluate {
 
         buildA.buildFile << """
             dependencies {
-                compile "org.test:b1:1.0"
+                implementation "org.test:b1:1.0"
             }
 """
 
@@ -604,7 +605,7 @@ afterEvaluate {
 
         buildA.buildFile << """
             dependencies {
-                compile "org.test:c1:1.0"
+                implementation "org.test:c1:1.0"
             }
 """
 
@@ -656,13 +657,13 @@ afterEvaluate {
 
         buildB.buildFile << """
             dependencies {
-                compile ${dependencyNotation}
+                implementation ${dependencyNotation}
             }
 """
 
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildB:1.0"
+                implementation "org.test:buildB:1.0"
             }
 """
     }
@@ -674,7 +675,7 @@ afterEvaluate {
 
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildB:1.0"
+                implementation "org.test:buildB:1.0"
             }
 """
 
@@ -697,7 +698,7 @@ afterEvaluate {
 
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildC:1.0"
+                implementation "org.test:buildC:1.0"
             }
 """
 
@@ -705,7 +706,8 @@ afterEvaluate {
         checkDependenciesFails()
 
         then:
-        failure.assertHasCause("Project : declares a dependency from configuration 'compile' to configuration 'default' which is not declared in the descriptor for project :buildC.")
+        failure.assertHasCause("Unable to find a matching configuration of project :buildC:\n" +
+            "  - None of the consumable configurations have attributes.")
     }
 
     def "includes build identifier in error message on failure to resolve dependencies of included build"() {
@@ -717,7 +719,7 @@ afterEvaluate {
 
         buildA.buildFile << """
             dependencies {
-                compile "org.test:buildC:1.0"
+                implementation "org.test:buildC:1.0"
             }
         """
         buildC.buildFile << """
@@ -755,7 +757,7 @@ afterEvaluate {
         failure.assertHasCause("""Could not find org.test:test:1.2.
 Searched in the following locations:
   - ${m.pom.file.toURL()}
-  - ${m.artifact.file.toURL()}
+If the artifact you are trying to retrieve can be found in the repository but without metadata in 'Maven POM' format, you need to adjust the 'metadataSources { ... }' of the repository declaration.
 Required by:
     project :buildC""")
 
@@ -768,7 +770,7 @@ Required by:
         then:
         failure.assertHasDescription("Execution failed for task ':buildC:buildOutputs'.")
         failure.assertHasCause("Could not resolve all files for configuration ':buildC:buildInputs'.")
-        failure.assertHasCause("Could not find test.jar (org.test:test:1.2).")
+        failure.assertHasCause("Could not find test-1.2.jar (org.test:test:1.2).")
     }
 
     private void withArgs(List<String> args) {

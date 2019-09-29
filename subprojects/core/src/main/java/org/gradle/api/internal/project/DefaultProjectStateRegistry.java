@@ -53,6 +53,7 @@ public class DefaultProjectStateRegistry implements ProjectStateRegistry {
         this.workerLeaseService = workerLeaseService;
     }
 
+    @Override
     public void registerProjects(BuildState owner) {
         Set<DefaultProjectDescriptor> allProjects = owner.getLoadedSettings().getProjectRegistry().getAllProjects();
         synchronized (lock) {
@@ -68,7 +69,7 @@ public class DefaultProjectStateRegistry implements ProjectStateRegistry {
     }
 
     @Override
-    public void register(BuildState owner, ProjectInternal project) {
+    public ProjectState register(BuildState owner, ProjectInternal project) {
         synchronized (lock) {
             Path identityPath = project.getIdentityPath();
             ProjectComponentIdentifier projectIdentifier = owner.getIdentifierForProject(project.getProjectPath());
@@ -76,6 +77,7 @@ public class DefaultProjectStateRegistry implements ProjectStateRegistry {
             projectsByPath.put(projectState.projectIdentityPath, projectState);
             projectsById.put(projectState.identifier, projectState);
             projectsByCompId.put(Pair.of(owner.getBuildIdentifier(), project.getProjectPath()), projectState);
+            return projectState;
         }
     }
 
@@ -182,8 +184,18 @@ public class DefaultProjectStateRegistry implements ProjectStateRegistry {
         }
 
         @Override
-        public <T> void withMutableState(Runnable action) {
+        public ResourceLock getAccessLock() {
+            return projectLock;
+        }
+
+        @Override
+        public void withMutableState(Runnable action) {
             withMutableState(Factories.toFactory(action));
+        }
+
+        @Override
+        public void withLenientState(Runnable runnable) {
+            DefaultProjectStateRegistry.this.withLenientState(runnable);
         }
 
         @Override

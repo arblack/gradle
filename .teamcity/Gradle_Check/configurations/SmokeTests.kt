@@ -15,11 +15,15 @@ class SmokeTests(model: CIBuildModel, stage: Stage) : BaseGradleBuildType(model,
         param("env.JAVA_HOME", buildJavaHome)
     }
 
+    features {
+        publishBuildStatusToGithub(model)
+    }
+
     applyTestDefaults(
             model,
             this,
             "smokeTest:smokeTest",
             notQuick = true,
-            extraParameters = buildScanTag("SmokeTests") + " -PtestJavaHome=${smokeTestJavaHome}"
+            extraParameters = buildScanTag("SmokeTests") + " -PtestJavaHome=$smokeTestJavaHome"
     )
 })

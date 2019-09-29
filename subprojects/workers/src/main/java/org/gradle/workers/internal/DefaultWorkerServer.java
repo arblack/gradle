@@ -16,41 +16,42 @@
 
 package org.gradle.workers.internal;
 
-import org.gradle.api.tasks.WorkResult;
+import org.gradle.internal.Cast;
 import org.gradle.internal.instantiation.InstantiatorFactory;
 import org.gradle.internal.reflect.Instantiator;
+import org.gradle.internal.service.DefaultServiceRegistry;
 import org.gradle.internal.service.ServiceRegistry;
-
-import javax.inject.Inject;
-import java.util.concurrent.Callable;
+import org.gradle.workers.WorkAction;
 
 public class DefaultWorkerServer implements WorkerProtocol {
-    private final Instantiator instantiator;
+    private final ServiceRegistry workServices;
+    private final InstantiatorFactory instantiatorFactory;
 
-    @Inject
-    public DefaultWorkerServer(ServiceRegistry serviceRegistry) {
-        this.instantiator = serviceRegistry.get(InstantiatorFactory.class).inject(serviceRegistry);
+    public DefaultWorkerServer(ServiceRegistry workServices, InstantiatorFactory instantiatorFactory) {
+        this.workServices = workServices;
+        this.instantiatorFactory = instantiatorFactory;
     }
 
     @Override
     public DefaultWorkResult execute(ActionExecutionSpec spec) {
         try {
-            Class<?> implementationClass = spec.getImplementationClass();
-            Object action = instantiator.newInstance(implementationClass, spec.getParams(implementationClass.getClassLoader()));
-            if (action instanceof Runnable) {
-                ((Runnable) action).run();
-                return new DefaultWorkResult(true, null);
-            } else if (action instanceof Callable) {
-                Object result = ((Callable) action).call();
-                if (result instanceof DefaultWorkResult) {
-                    return (DefaultWorkResult) result;
-                } else if (result instanceof WorkResult) {
-                    return new DefaultWorkResult(((WorkResult) result).getDidWork(), null);
-                } else {
-                    throw new IllegalArgumentException("Worker actions must return a WorkResult.");
-                }
+            Class<? extends WorkAction> implementationClass = Cast.uncheckedCast(spec.getImplementationClass());
+            DefaultServiceRegistry serviceRegistry = new DefaultServiceRegistry(workServices);
+            Instantiator instantiator = instantiatorFactory.inject(serviceRegistry);
+            if (spec.getParameters() != null) {
+                serviceRegistry.add(spec.getParameters().getClass(), Cast.uncheckedCast(spec.getParameters()));
+            }
+
+            // TODO This is only necessary for AdapterWorkAction so that legacy work runnables can inject a WorkerExecutor.
+            // This can be removed once the legacy api is retired.
+            serviceRegistry.add(Instantiator.class, instantiator);
+
+            WorkAction execution = instantiator.newInstance(implementationClass);
+            execution.execute();
+            if (execution instanceof ProvidesWorkResult) {
+                return ((ProvidesWorkResult) execution).getWorkResult();
             } else {
-                throw new IllegalArgumentException("Worker actions must either implement Runnable or Callable<WorkResult>.");
+                return DefaultWorkResult.SUCCESS;
             }
         } catch (Throwable t) {
             return new DefaultWorkResult(true, t);

@@ -17,15 +17,15 @@
 package org.gradle.performance.regression.nativeplatform
 
 import org.gradle.initialization.ParallelismBuildOptions
-import org.gradle.performance.AbstractCrossVersionPerformanceTest
+import org.gradle.performance.AbstractCrossVersionGradleInternalPerformanceTest
 import org.gradle.performance.mutator.AbstractFileChangeMutator
 import spock.lang.Unroll
 
-class SwiftBuildPerformanceTest extends AbstractCrossVersionPerformanceTest {
+class SwiftBuildPerformanceTest extends AbstractCrossVersionGradleInternalPerformanceTest {
 
     def setup() {
         runner.minimumVersion = '4.6'
-        runner.targetVersions = ["5.2-20181218000039+0000"]
+        runner.targetVersions = ["6.0-20190823180744+0000"]
         runner.args += ["--parallel", "--${ParallelismBuildOptions.MaxWorkersOption.LONG_OPTION}=6"]
     }
 
@@ -53,6 +53,7 @@ class SwiftBuildPerformanceTest extends AbstractCrossVersionPerformanceTest {
         given:
         runner.testProject = testProject
         runner.tasksToRun = ["assemble"]
+        runner.targetVersions = ['5.7-20190811220031+0000']
         runner.gradleOpts = ["-Xms$maxMemory", "-Xmx$maxMemory"]
         runner.addBuildExperimentListener(new ChangeSwiftFileMutator(fileToChange))
 

@@ -17,6 +17,8 @@
 package org.gradle.test.fixtures.maven
 
 import groovy.xml.MarkupBuilder
+import org.gradle.api.attributes.Category
+import org.gradle.api.attributes.LibraryElements
 import org.gradle.api.attributes.Usage
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.parser.MetaDataParser
 import org.gradle.internal.hash.HashUtil
@@ -25,6 +27,7 @@ import org.gradle.test.fixtures.GradleModuleMetadata
 import org.gradle.test.fixtures.Module
 import org.gradle.test.fixtures.ModuleArtifact
 import org.gradle.test.fixtures.file.TestFile
+import org.gradle.test.fixtures.gradle.ArtifactSelectorSpec
 import org.gradle.test.fixtures.gradle.DependencyConstraintSpec
 import org.gradle.test.fixtures.gradle.DependencySpec
 import org.gradle.test.fixtures.gradle.FileSpec
@@ -34,7 +37,6 @@ import org.gradle.test.fixtures.gradle.VariantMetadataSpec
 import java.text.SimpleDateFormat
 
 abstract class AbstractMavenModule extends AbstractModule implements MavenModule {
-    protected static final String MAVEN_METADATA_FILE = "maven-metadata.xml"
     private final TestFile rootDir
     final TestFile moduleDir
     final String groupId
@@ -46,7 +48,8 @@ abstract class AbstractMavenModule extends AbstractModule implements MavenModule
     int publishCount = 1
     private boolean hasPom = true
     private boolean gradleMetadataRedirect = false
-    private final List<VariantMetadataSpec> variants = [new VariantMetadataSpec("api", [(Usage.USAGE_ATTRIBUTE.name): Usage.JAVA_API_JARS]), new VariantMetadataSpec("runtime", [(Usage.USAGE_ATTRIBUTE.name): Usage.JAVA_RUNTIME_JARS])]
+    private final List<VariantMetadataSpec> variants = [new VariantMetadataSpec("api", [(Usage.USAGE_ATTRIBUTE.name): Usage.JAVA_API, (LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE.name): LibraryElements.JAR, (Category.CATEGORY_ATTRIBUTE.name): Category.LIBRARY]),
+                                                        new VariantMetadataSpec("runtime", [(Usage.USAGE_ATTRIBUTE.name): Usage.JAVA_RUNTIME, (LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE.name): LibraryElements.JAR, (Category.CATEGORY_ATTRIBUTE.name): Category.LIBRARY])]
     private final List dependencies = []
     private final List artifacts = []
     final updateFormat = new SimpleDateFormat("yyyyMMddHHmmss")
@@ -129,7 +132,8 @@ abstract class AbstractMavenModule extends AbstractModule implements MavenModule
         this.dependencies << [groupId: target.group, artifactId: target.module, version: target.version,
                               type: attributes.type, scope: attributes.scope, classifier: attributes.classifier,
                               optional: attributes.optional, exclusions: attributes.exclusions, rejects: attributes.rejects,
-                              prefers: attributes.prefers, strictly: attributes.strictly, reason: attributes.reason
+                              prefers: attributes.prefers, strictly: attributes.strictly,
+                              endorseStrictVersions: attributes.endorseStrictVersions, reason: attributes.reason
         ]
         return this
     }
@@ -199,6 +203,13 @@ abstract class AbstractMavenModule extends AbstractModule implements MavenModule
     MavenModule artifact(Map<String, ?> options) {
         artifacts << options
         return this
+    }
+
+    /**
+     * Same as {@link #artifact(Map)} since all additional artifacts are undeclared in maven.
+     */
+    MavenModule undeclaredArtifact(Map<String, ?> options) {
+        return artifact(options)
     }
 
     String getPackaging() {
@@ -336,12 +347,12 @@ abstract class AbstractMavenModule extends AbstractModule implements MavenModule
 
     @Override
     DefaultRootMavenMetaData getRootMetaData() {
-        new DefaultRootMavenMetaData("$moduleRootPath/${MAVEN_METADATA_FILE}", rootMetaDataFile)
+        new DefaultRootMavenMetaData("$moduleRootPath/${metadataFileName}", rootMetaDataFile)
     }
 
     @Override
     DefaultSnapshotMavenMetaData getSnapshotMetaData() {
-        new DefaultSnapshotMavenMetaData("$path/${MAVEN_METADATA_FILE}", snapshotMetaDataFile)
+        new DefaultSnapshotMavenMetaData("$path/${metadataFileName}", snapshotMetaDataFile)
     }
 
     @Override
@@ -370,15 +381,19 @@ abstract class AbstractMavenModule extends AbstractModule implements MavenModule
 
     @Override
     TestFile getMetaDataFile() {
-        moduleDir.file(MAVEN_METADATA_FILE)
+        moduleDir.file(metadataFileName)
     }
 
     TestFile getRootMetaDataFile() {
-        moduleDir.parentFile.file(MAVEN_METADATA_FILE)
+        moduleDir.parentFile.file(metadataFileName)
     }
 
     TestFile getSnapshotMetaDataFile() {
-        moduleDir.file(MAVEN_METADATA_FILE)
+        moduleDir.file(metadataFileName)
+    }
+
+    protected String getMetadataFileName() {
+        "maven-metadata.xml"
     }
 
     TestFile artifactFile(Map<String, ?> options) {
@@ -458,14 +473,15 @@ abstract class AbstractMavenModule extends AbstractModule implements MavenModule
                     v.name,
                     v.attributes,
                     v.dependencies + dependencies.findAll { !it.optional }.collect { d ->
-                        new DependencySpec(d.groupId, d.artifactId, d.version, d.prefers, d.strictly, d.rejects, d.exclusions, d.reason, d.attributes)
+                        new DependencySpec(d.groupId, d.artifactId, d.version, d.prefers, d.strictly, d.rejects, d.exclusions, d.endorseStrictVersions, d.reason, d.attributes,
+                            d.classifier ? new ArtifactSelectorSpec(d.artifactId, 'jar', 'jar', d.classifier) : null)
                     },
                     v.dependencyConstraints + dependencies.findAll { it.optional }.collect { d ->
                         new DependencyConstraintSpec(d.groupId, d.artifactId, d.version, d.prefers, d.strictly, d.rejects, d.reason, d.attributes)
                     },
                     artifacts,
                     v.capabilities,
-                    v.availableAt
+                    v.availableAt,
                 )
             },
             attributes + ['org.gradle.status': version.endsWith('-SNAPSHOT') ? 'integration' : 'release']
@@ -679,17 +695,19 @@ abstract class AbstractMavenModule extends AbstractModule implements MavenModule
 
     @Override
     MavenModule withModuleMetadata() {
+        gradleMetadataRedirect = true
         super.withModuleMetadata()
+        this
     }
 
     @Override
-    MavenModule withGradleMetadataRedirection() {
-        gradleMetadataRedirect = true
+    MavenModule withoutGradleMetadataRedirection() {
+        gradleMetadataRedirect = false
         return this
     }
 
     @Override
-    void withVariant(String name, @DelegatesTo(value = VariantMetadataSpec, strategy = Closure.DELEGATE_FIRST) Closure<?> action) {
+    MavenModule withVariant(String name, @DelegatesTo(value = VariantMetadataSpec, strategy = Closure.DELEGATE_FIRST) Closure<?> action) {
         def variant = variants.find { it.name == name }
         if (variant == null) {
             variant = createVariant(name, [:])
@@ -697,5 +715,12 @@ abstract class AbstractMavenModule extends AbstractModule implements MavenModule
         action.resolveStrategy = Closure.DELEGATE_FIRST
         action.delegate = variant
         action()
+        return this
+    }
+
+    @Override
+    MavenModule withoutDefaultVariants() {
+        variants.clear()
+        this
     }
 }

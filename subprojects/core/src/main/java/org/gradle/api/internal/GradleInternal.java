@@ -42,8 +42,11 @@ public interface GradleInternal extends Gradle, PluginAwareInternal {
     /**
      * {@inheritDoc}
      */
+    @Override
     ProjectInternal getRootProject() throws IllegalStateException;
 
+    @Override
+    @Nullable
     GradleInternal getParent();
 
     GradleInternal getRoot();
@@ -56,6 +59,7 @@ public interface GradleInternal extends Gradle, PluginAwareInternal {
     /**
      * {@inheritDoc}
      */
+    @Override
     TaskExecutionGraphInternal getTaskGraph();
 
     /**
@@ -142,5 +146,26 @@ public interface GradleInternal extends Gradle, PluginAwareInternal {
     void setBuildType(BuildType buildType);
 
     BuildType getBuildType();
+
+    /**
+     * The basis for project build scripts.
+     *
+     * It is the Gradle runtime + buildSrc's contributions.
+     * This is used as the parent scope for the root project's build script, and all script plugins.
+     *
+     * This is only on this object for convenience due to legacy.
+     * Pre Gradle 6, what is now called {@link SettingsInternal#getBaseClassLoaderScope()} was used as the equivalent scope for project scripts.
+     * Since Gradle 6, it does not include buildSrc, whereas this scope does.
+     *
+     * This method is not named as a property getter to avoid getProperties() invoking it.
+     *
+     * @throws IllegalStateException if called before {@link #setBaseProjectClassLoaderScope(ClassLoaderScope)}
+     */
+    ClassLoaderScope baseProjectClassLoaderScope();
+
+    /**
+     * @throws IllegalStateException if called more than once
+     */
+    void setBaseProjectClassLoaderScope(ClassLoaderScope classLoaderScope);
 
 }

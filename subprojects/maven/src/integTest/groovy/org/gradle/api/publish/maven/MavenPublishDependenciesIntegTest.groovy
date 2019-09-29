@@ -29,14 +29,14 @@ class MavenPublishDependenciesIntegTest extends AbstractMavenPublishIntegTest {
         settingsFile << "rootProject.name = 'root'"
         buildFile << """
             apply plugin: 'maven-publish'
-            apply plugin: 'java'
+            apply plugin: 'java-library'
 
             group = 'group'
             version = '1.0'
 
             dependencies {
-                compile ('org.test:non-transitive:1.0') { transitive = false }
-                compile 'org.test:artifact-only:1.0@jar'
+                api('org.test:non-transitive:1.0') { transitive = false }
+                api 'org.test:artifact-only:1.0@jar'
             }
 
             publishing {
@@ -73,13 +73,13 @@ class MavenPublishDependenciesIntegTest extends AbstractMavenPublishIntegTest {
         settingsFile << "rootProject.name = 'root'"
         buildFile << """
             apply plugin: 'maven-publish'
-            apply plugin: 'java'
+            apply plugin: 'java-library'
 
             group = 'group'
             version = '1.0'
 
             dependencies {
-                compile $dependencyNotation
+                api $dependencyNotation
             }
 
             publishing {
@@ -115,13 +115,13 @@ class MavenPublishDependenciesIntegTest extends AbstractMavenPublishIntegTest {
         given:
         settingsFile << "rootProject.name = 'root'"
         buildFile << """
-            apply plugin: "java"
+            apply plugin: "java-library"
             apply plugin: "maven-publish"
 
             group = 'group'
             version = '1.0'
 
-            configurations.compile.defaultDependencies { deps ->
+            configurations.api.defaultDependencies { deps ->
                 deps.add project.dependencies.create("org:default-dependency:1.0")
             }
             configurations.implementation.defaultDependencies { deps ->
@@ -156,16 +156,16 @@ class MavenPublishDependenciesIntegTest extends AbstractMavenPublishIntegTest {
         given:
         settingsFile << "rootProject.name = 'root'"
         buildFile << """
-            apply plugin: "java"
+            apply plugin: "java-library"
             apply plugin: "maven-publish"
 
             group = 'group'
             version = '1.0'
 
             dependencies {
-                compile "org.test:dep1:1.0"
+                api "org.test:dep1:1.0"
             }
-            configurations.compile.withDependencies { deps ->
+            configurations.api.withDependencies { deps ->
                 deps.each { dep ->
                     dep.version { require 'X' }
                 }
@@ -190,6 +190,137 @@ class MavenPublishDependenciesIntegTest extends AbstractMavenPublishIntegTest {
         then:
         repoModule.assertPublished()
         repoModule.assertApiDependencies('org.test:dep1:X', 'org.test:dep2:1.0')
+    }
+
+    def "publishes both dependencies when one has a classifier"() {
+        given:
+        settingsFile << "rootProject.name = 'root'"
+        buildFile << """
+            apply plugin: "java-library"
+            apply plugin: "maven-publish"
+
+            group = 'group'
+            version = '1.0'
+
+            dependencies {
+                implementation "org:foo:1.0"
+                implementation "org:foo:1.0:classy"
+            }
+
+            publishing {
+                repositories {
+                    maven { url "${mavenRepo.uri}" }
+                }
+                publications {
+                    maven(MavenPublication) {
+                        from components.java
+                    }
+                }
+            }
+        """
+
+        when:
+        succeeds "publish"
+
+        then:
+        repoModule.assertPublished()
+        repoModule.assertApiDependencies()
+        repoModule.parsedPom.scope("runtime") {
+            def deps = dependencies.values()
+            assert deps.size() == 2
+            assert deps[0].classifier == null
+            assert deps[1].classifier == "classy"
+        }
+        repoModule.parsedModuleMetadata.variant("runtimeElements") {
+            dependency("org:foo:1.0") {
+                // first dependency
+                exists()
+                noAttributes()
+                artifactSelector == null
+                // second dependency
+                next()
+                exists()
+                artifactSelector.name == 'foo'
+                artifactSelector.type == 'jar'
+                artifactSelector.extension == 'jar'
+                artifactSelector.classifier == 'classy'
+                isLast()
+            }
+        }
+    }
+
+    def "dependencies with multiple dependency artifacts are mapped to multiple dependency declarations in GMM"() {
+        given:
+        settingsFile << "rootProject.name = 'root'"
+        buildFile << """
+            apply plugin: "java-library"
+            apply plugin: "maven-publish"
+
+            group = 'group'
+            version = '1.0'
+
+            dependencies {
+                implementation "org:foo:1.0"
+                implementation("org:foo:1.0:classy") {
+                    artifact {
+                        name = "tarified"
+                        type = "tarfile"
+                        extension = "tar"
+                        classifier = "ctar"
+                        url = "http://new.home/tar"
+                    }
+                }
+            }
+
+            publishing {
+                repositories {
+                    maven { url "${mavenRepo.uri}" }
+                }
+                publications {
+                    maven(MavenPublication) {
+                        from components.java
+                    }
+                }
+            }
+        """
+
+        when:
+        succeeds "publish"
+
+        then:
+        repoModule.assertPublished()
+        repoModule.assertApiDependencies()
+        repoModule.parsedPom.scope("runtime") {
+            def deps = dependencies.values()
+            assert deps.size() == 3
+            assert deps[0].classifier == null
+            assert deps[1].classifier == "classy"
+            assert deps[2].classifier == "ctar"
+        }
+        repoModule.parsedModuleMetadata.variant("runtimeElements") {
+            dependency("org:foo:1.0") {
+                // first dependency
+                exists()
+                noAttributes()
+                // second dependency
+                next()
+                exists()
+                noAttributes()
+                artifactSelector.name == 'foo'
+                artifactSelector.type == 'jar'
+                artifactSelector.extension == 'jar'
+                artifactSelector.classifier == 'classy'
+                // third dependency
+                next()
+                exists()
+                noAttributes()
+                artifactSelector.name == 'foo'
+                artifactSelector.type == 'jar'
+                artifactSelector.extension == 'jar'
+                artifactSelector.classifier == 'ctar'
+                isLast()
+            }
+        }
     }
 
 }

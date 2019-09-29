@@ -1,4 +1,4 @@
-// Copyright 2018 the original author or authors.
+// Copyright 2019 the original author or authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,16 +36,16 @@ In order to operate, the link:{groovyDslPath}/org.gradle.nativeplatform.test.tas
 
  * Where to find the built test executable (property: link:{groovyDslPath}/org.gradle.nativeplatform.test.tasks.RunTestExecutable.html#org.gradle.nativeplatform.test.tasks.RunTestExecutable:executable[RunTestExecutable.getExecutable()])
 
-// TODO: Adds link to C++ Unit Test Plugin reference chapter
-When you’re using the C++ Unit Test Plugin you will automatically get the following:
+When you’re using the <<cpp_unit_test_plugin.adoc#,{cpp} Unit Test Plugin>> you will automatically get the following:
 
- * A dedicated `unitTest` extension for configuring test component and its variants
+ * A dedicated link:{groovyDslPath}/org.gradle.nativeplatform.test.cpp.CppTestSuite.html[unitTest] extension for configuring test component and its variants
  * A `run` task of type link:{groovyDslPath}/org.gradle.nativeplatform.test.tasks.RunTestExecutable.html[RunTestExecutable] that runs the test executable
 
 The test plugins configure the required pieces of information appropriately.
 In addition, they attach the `run` task to the `check` lifecycle task.
-They also create the `testImplementation` dependency configuration.  Dependencies that are only needed for test compilation, linking and runtime may be added to this configuration.
-The `unitTest` script block behave similarly to a `application` script block.
+It also create the `testImplementation` dependency configuration.
+Dependencies that are only needed for test compilation, linking and runtime may be added to this configuration.
+The `unitTest` script block behave similarly to a `application` or `library` script block.
 
 The link:{groovyDslPath}/org.gradle.nativeplatform.test.tasks.RunTestExecutable.html[RunTestExecutable] task has many configuration options.
 We cover a number of them in the rest of the chapter.

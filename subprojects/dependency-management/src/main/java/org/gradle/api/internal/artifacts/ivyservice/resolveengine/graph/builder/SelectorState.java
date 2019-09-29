@@ -18,23 +18,22 @@ package org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.builder
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import org.gradle.api.Describable;
 import org.gradle.api.artifacts.ModuleIdentifier;
 import org.gradle.api.artifacts.component.ComponentSelector;
-import org.gradle.api.artifacts.component.ModuleComponentSelector;
+import org.gradle.api.artifacts.component.ProjectComponentSelector;
 import org.gradle.api.artifacts.result.ComponentSelectionCause;
 import org.gradle.api.internal.artifacts.ResolvedVersionConstraint;
-import org.gradle.api.internal.artifacts.dependencies.DefaultResolvedVersionConstraint;
+import org.gradle.api.internal.artifacts.dependencies.DefaultImmutableVersionConstraint;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.strategy.VersionSelector;
-import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.strategy.VersionSelectorScheme;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.DependencyGraphSelector;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.selectors.ResolvableSelectorState;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.result.ComponentSelectionDescriptorInternal;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.result.ComponentSelectionReasonInternal;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.result.ComponentSelectionReasons;
-import org.gradle.api.internal.attributes.ImmutableAttributesFactory;
+import org.gradle.api.internal.attributes.AttributeDesugaring;
 import org.gradle.internal.component.model.DependencyMetadata;
+import org.gradle.internal.logging.text.TreeFormatter;
 import org.gradle.internal.resolve.ModuleVersionResolveException;
 import org.gradle.internal.resolve.RejectedByAttributesVersion;
 import org.gradle.internal.resolve.RejectedByRuleVersion;
@@ -44,10 +43,9 @@ import org.gradle.internal.resolve.resolver.DependencyToComponentIdResolver;
 import org.gradle.internal.resolve.result.BuildableComponentIdResolveResult;
 import org.gradle.internal.resolve.result.ComponentIdResolveResult;
 import org.gradle.internal.resolve.result.DefaultBuildableComponentIdResolveResult;
-import org.gradle.internal.logging.text.TreeFormatter;
 
 import java.util.Collection;
-import java.util.Set;
+import java.util.List;
 
 /**
  * Resolution state for a given module version selector.
@@ -63,10 +61,10 @@ class SelectorState implements DependencyGraphSelector, ResolvableSelectorState 
     private final DependencyState dependencyState;
     private final DependencyMetadata firstSeenDependency;
     private final DependencyToComponentIdResolver resolver;
-    private final DefaultResolvedVersionConstraint versionConstraint;
-    private final VersionSelectorScheme versionSelectorScheme;
-    private final ImmutableAttributesFactory attributesFactory;
-    private final Set<ComponentSelectionDescriptorInternal> dependencyReasons = Sets.newLinkedHashSet();
+    private final ResolvedVersionConstraint versionConstraint;
+    private final List<ComponentSelectionDescriptorInternal> dependencyReasons = Lists.newArrayListWithExpectedSize(4);
+    private final boolean isProjectSelector;
+    private final AttributeDesugaring attributeDesugaring;
 
     private ComponentIdResolveResult preferResult;
     private ComponentIdResolveResult requireResult;
@@ -85,17 +83,27 @@ class SelectorState implements DependencyGraphSelector, ResolvableSelectorState 
     // evicted, but it can still be reintegrated later in a different path.
     private int outgoingEdgeCount;
 
-    SelectorState(Long id, DependencyState dependencyState, DependencyToComponentIdResolver resolver, VersionSelectorScheme versionSelectorScheme, ResolveState resolveState, ModuleIdentifier targetModuleId) {
+    SelectorState(Long id, DependencyState dependencyState, DependencyToComponentIdResolver resolver, ResolveState resolveState, ModuleIdentifier targetModuleId, boolean versionByAncestor) {
         this.id = id;
         this.resolver = resolver;
-        this.versionSelectorScheme = versionSelectorScheme;
         this.targetModule = resolveState.getModule(targetModuleId);
-        this.attributesFactory = resolveState.getAttributesFactory();
-
+        if (versionByAncestor) {
+            dependencyReasons.add(ComponentSelectionReasons.BY_ANCESTOR);
+        }
         update(dependencyState);
         this.dependencyState = dependencyState;
         this.firstSeenDependency = dependencyState.getDependency();
-        this.versionConstraint = resolveVersionConstraint(firstSeenDependency.getSelector());
+        this.versionConstraint = versionByAncestor ?
+            resolveState.resolveVersionConstraint(DefaultImmutableVersionConstraint.of()) :
+            resolveState.resolveVersionConstraint(firstSeenDependency.getSelector());
+        this.isProjectSelector = getSelector() instanceof ProjectComponentSelector;
+        this.attributeDesugaring = resolveState.getAttributeDesugaring();
+    }
+
+    @Override
+    public boolean isProject() {
+        // this is cached because used very often in sorting selectors
+        return isProjectSelector;
     }
 
     public void use(boolean deferSelection) {
@@ -118,13 +126,6 @@ class SelectorState implements DependencyGraphSelector, ResolvableSelectorState 
         resolved = false;
     }
 
-    private DefaultResolvedVersionConstraint resolveVersionConstraint(ComponentSelector selector) {
-        if (selector instanceof ModuleComponentSelector) {
-            return new DefaultResolvedVersionConstraint(((ModuleComponentSelector) selector).getVersionConstraint(), versionSelectorScheme);
-        }
-        return null;
-    }
-
     @Override
     public Long getResultId() {
         return id;
@@ -137,7 +138,7 @@ class SelectorState implements DependencyGraphSelector, ResolvableSelectorState 
 
     @Override
     public ComponentSelector getRequested() {
-        return selectorWithDesugaredAttributes(dependencyState.getRequested());
+        return attributeDesugaring.desugarSelector(dependencyState.getRequested());
     }
 
     public ModuleResolveState getTargetModule() {
@@ -253,7 +254,7 @@ class SelectorState implements DependencyGraphSelector, ResolvableSelectorState 
     public ComponentSelectionReasonInternal getSelectionReason() {
         return ComponentSelectionReasons.of(dependencyReasons);
     }
-     
+
     /**
      * Append selection descriptors to the supplied "reason", enhancing with any 'unmatched' or 'rejected' reasons.
      */
@@ -293,6 +294,7 @@ class SelectorState implements DependencyGraphSelector, ResolvableSelectorState 
         return firstSeenDependency;
     }
 
+    @Override
     public ResolvedVersionConstraint getVersionConstraint() {
         return versionConstraint;
     }
@@ -317,8 +319,8 @@ class SelectorState implements DependencyGraphSelector, ResolvableSelectorState 
         return fromLock;
     }
 
-    private ComponentSelector selectorWithDesugaredAttributes(ComponentSelector selector) {
-        return AttributeDesugaring.desugarSelector(selector, attributesFactory);
+    public boolean hasStrongOpinion() {
+        return forced || versionConstraint.isStrict();
     }
 
     public void update(DependencyState dependencyState) {

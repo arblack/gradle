@@ -43,12 +43,12 @@ import org.gradle.internal.jvm.inspection.JvmVersionDetector;
 import org.gradle.internal.logging.LoggingManagerInternal;
 import org.gradle.internal.logging.services.DefaultLoggingManagerFactory;
 import org.gradle.internal.logging.services.LoggingServiceRegistry;
-import org.gradle.internal.logging.sink.ConsoleStateUtil;
+import org.gradle.internal.nativeintegration.console.TestOverrideConsoleDetector;
 import org.gradle.internal.nativeintegration.services.NativeServices;
 import org.gradle.internal.service.ServiceRegistry;
 import org.gradle.internal.service.ServiceRegistryBuilder;
 import org.gradle.internal.service.scopes.GlobalScopeServices;
-import org.gradle.launcher.cli.CommandLineActionFactory;
+import org.gradle.launcher.cli.DefaultCommandLineActionFactory;
 import org.gradle.launcher.daemon.configuration.DaemonBuildOptions;
 import org.gradle.process.internal.streams.SafeStreams;
 import org.gradle.test.fixtures.file.TestDirectoryProvider;
@@ -73,6 +73,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.gradle.api.internal.artifacts.BaseRepositoryFactory.PLUGIN_PORTAL_OVERRIDE_URL_PROPERTY;
 import static org.gradle.integtests.fixtures.RepoScriptBlockUtil.gradlePluginRepositoryMirrorUrl;
@@ -150,7 +151,8 @@ public abstract class AbstractGradleExecuter implements GradleExecuter {
     private boolean showStacktrace = true;
     private boolean renderWelcomeMessage;
 
-    private int expectedDeprecationWarnings;
+    private int expectedGenericDeprecationWarnings;
+    private final List<String> expectedDeprecationWarnings = new ArrayList<>();
     private boolean eagerClassLoaderCreationChecksOn = true;
     private boolean stackTraceChecksOn = true;
 
@@ -219,7 +221,8 @@ public abstract class AbstractGradleExecuter implements GradleExecuter {
         commandLineJvmOpts.clear();
         buildJvmOpts.clear();
         useOnlyRequestedJvmOpts = false;
-        expectedDeprecationWarnings = 0;
+        expectedGenericDeprecationWarnings = 0;
+        expectedDeprecationWarnings.clear();
         stackTraceChecksOn = true;
         renderWelcomeMessage = false;
         debug = Boolean.getBoolean(DEBUG_SYSPROP);
@@ -344,9 +347,10 @@ public abstract class AbstractGradleExecuter implements GradleExecuter {
         }
         executer.noExtraLogging();
 
-        if (expectedDeprecationWarnings > 0) {
-            executer.expectDeprecationWarnings(expectedDeprecationWarnings);
+        if (expectedGenericDeprecationWarnings > 0) {
+            executer.expectDeprecationWarnings(expectedGenericDeprecationWarnings);
         }
+        expectedDeprecationWarnings.forEach(executer::expectDeprecationWarning);
         if (!eagerClassLoaderCreationChecksOn) {
             executer.withEagerClassLoaderCreationCheckDisabled();
         }
@@ -484,6 +488,7 @@ public abstract class AbstractGradleExecuter implements GradleExecuter {
         if (isUseDaemon() && !gradleInvocation.buildJvmArgs.isEmpty()) {
             // Pass build JVM args through to daemon via system property on the launcher JVM
             String quotedArgs = join(" ", collect(gradleInvocation.buildJvmArgs, new Transformer<String, String>() {
+                @Override
                 public String transform(String input) {
                     return String.format("'%s'", input);
                 }
@@ -771,6 +776,7 @@ public abstract class AbstractGradleExecuter implements GradleExecuter {
         return this;
     }
 
+    @Override
     public GradleExecuter withStacktraceDisabled() {
         showStacktrace = false;
         return this;
@@ -1012,10 +1018,10 @@ public abstract class AbstractGradleExecuter implements GradleExecuter {
         }
 
         if (interactive) {
-            properties.put(ConsoleStateUtil.INTERACTIVE_TOGGLE, "true");
+            properties.put(TestOverrideConsoleDetector.INTERACTIVE_TOGGLE, "true");
         }
 
-        properties.put(CommandLineActionFactory.WELCOME_MESSAGE_ENABLED_SYSTEM_PROPERTY, Boolean.toString(renderWelcomeMessage));
+        properties.put(DefaultCommandLineActionFactory.WELCOME_MESSAGE_ENABLED_SYSTEM_PROPERTY, Boolean.toString(renderWelcomeMessage));
 
         return properties;
     }
@@ -1130,9 +1136,10 @@ public abstract class AbstractGradleExecuter implements GradleExecuter {
 
     protected Action<ExecutionResult> getResultAssertion() {
         return new Action<ExecutionResult>() {
-            int expectedDeprecationWarnings = AbstractGradleExecuter.this.expectedDeprecationWarnings;
-            boolean expectStackTraces = !AbstractGradleExecuter.this.stackTraceChecksOn;
-            boolean checkDeprecations = AbstractGradleExecuter.this.checkDeprecations;
+            private int expectedGenericDeprecationWarnings = AbstractGradleExecuter.this.expectedGenericDeprecationWarnings;
+            private final List<String> expectedDeprecationWarnings = new ArrayList<>(AbstractGradleExecuter.this.expectedDeprecationWarnings);
+            private final boolean expectStackTraces = !AbstractGradleExecuter.this.stackTraceChecksOn;
+            private final boolean checkDeprecations = AbstractGradleExecuter.this.checkDeprecations;
 
             @Override
             public void execute(ExecutionResult executionResult) {
@@ -1153,8 +1160,14 @@ public abstract class AbstractGradleExecuter implements GradleExecuter {
 
                 validate(error, "Standard error");
 
-                if (expectedDeprecationWarnings > 0) {
-                    throw new AssertionError(String.format("Expected %d more deprecation warnings", expectedDeprecationWarnings));
+                if (!expectedDeprecationWarnings.isEmpty()) {
+                    throw new AssertionError(String.format("Expected the following deprecation warnings:%n%s",
+                        expectedDeprecationWarnings.stream()
+                            .map(warning -> " - " + warning)
+                            .collect(Collectors.joining("\n"))));
+                }
+                if (expectedGenericDeprecationWarnings > 0) {
+                    throw new AssertionError(String.format("Expected %d more deprecation warnings", expectedGenericDeprecationWarnings));
                 }
             }
 
@@ -1201,16 +1214,18 @@ public abstract class AbstractGradleExecuter implements GradleExecuter {
                         i++;
                     } else if (isDeprecationMessageInHelpDescription(line)) {
                         i++;
+                    } else if (expectedDeprecationWarnings.remove(line)) {
+                        // Deprecation warning is expected
+                        i++;
+                        i = skipStackTrace(lines, i);
                     } else if (line.matches(".*\\s+deprecated.*")) {
-                        if (checkDeprecations && expectedDeprecationWarnings <= 0) {
+                        if (checkDeprecations && expectedGenericDeprecationWarnings <= 0) {
                             throw new AssertionError(String.format("%s line %d contains a deprecation warning: %s%n=====%n%s%n=====%n", displayName, i + 1, line, output));
                         }
-                        expectedDeprecationWarnings--;
+                        expectedGenericDeprecationWarnings--;
                         // skip over stack trace
                         i++;
-                        while (i < lines.size() && STACK_TRACE_ELEMENT.matcher(lines.get(i)).matches()) {
-                            i++;
-                        }
+                        i = skipStackTrace(lines, i);
                     } else if (!expectStackTraces && !insideVariantDescriptionBlock && STACK_TRACE_ELEMENT.matcher(line).matches() && i < lines.size() - 1 && STACK_TRACE_ELEMENT.matcher(lines.get(i + 1)).matches()) {
                         // 2 or more lines that look like stack trace elements
                         throw new AssertionError(String.format("%s line %d contains an unexpected stack trace: %s%n=====%n%s%n=====%n", displayName, i + 1, line, output));
@@ -1218,6 +1233,13 @@ public abstract class AbstractGradleExecuter implements GradleExecuter {
                         i++;
                     }
                 }
+            }
+
+            private int skipStackTrace(List<String> lines, int i) {
+                while (i < lines.size() && STACK_TRACE_ELEMENT.matcher(lines.get(i)).matches()) {
+                    i++;
+                }
+                return i;
             }
 
             private boolean isDeprecationMessageInHelpDescription(String s) {
@@ -1233,9 +1255,15 @@ public abstract class AbstractGradleExecuter implements GradleExecuter {
 
     @Override
     public GradleExecuter expectDeprecationWarnings(int count) {
-        Preconditions.checkState(expectedDeprecationWarnings == 0, "expected deprecation count is already set for this execution");
+        Preconditions.checkState(expectedGenericDeprecationWarnings == 0, "expected deprecation count is already set for this execution");
         Preconditions.checkArgument(count > 0, "expected deprecation count must be positive");
-        expectedDeprecationWarnings = count;
+        expectedGenericDeprecationWarnings = count;
+        return this;
+    }
+
+    @Override
+    public GradleExecuter expectDeprecationWarning(String warning) {
+        expectedDeprecationWarnings.add(warning);
         return this;
     }
 

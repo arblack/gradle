@@ -33,7 +33,7 @@ import static java.lang.String.format;
 import static org.gradle.internal.IoActions.uncheckedClose;
 
 public class GradleVersion implements Comparable<GradleVersion> {
-    public static final String URL = "http://www.gradle.org";
+    public static final String URL = "https://www.gradle.org";
     private static final Pattern VERSION_PATTERN = Pattern.compile("((\\d+)(\\.\\d+)+)(-(\\p{Alpha}+)-(\\w+))?(-(SNAPSHOT|\\d{14}([-+]\\d{4})?))?");
     private static final int STAGE_MILESTONE = 0;
     private static final int STAGE_UNKNOWN = 1;
@@ -211,6 +211,7 @@ public class GradleVersion implements Comparable<GradleVersion> {
         return version((majorPart + 1) + ".0");
     }
 
+    @Override
     public int compareTo(GradleVersion gradleVersion) {
         String[] majorVersionParts = versionPart.split("\\.");
         String[] otherMajorVersionParts = gradleVersion.versionPart.split("\\.");
@@ -304,6 +305,7 @@ public class GradleVersion implements Comparable<GradleVersion> {
             }
         }
 
+        @Override
         public int compareTo(Stage other) {
             if (stage > other.stage) {
                 return 1;

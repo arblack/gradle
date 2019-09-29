@@ -19,6 +19,7 @@ package org.gradle.testing.jacoco.plugins
 import org.gradle.api.Project
 import org.gradle.api.reporting.ReportingExtension
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
+import org.gradle.testing.jacoco.plugins.fixtures.JacocoReportFixture
 import org.gradle.testing.jacoco.plugins.fixtures.JavaProjectUnderTest
 
 class JacocoPluginIntegrationTest extends AbstractIntegrationSpec {
@@ -95,6 +96,7 @@ class JacocoPluginIntegrationTest extends AbstractIntegrationSpec {
         succeeds('test', 'jacocoTestReport')
 
         then:
+        executedAndNotSkipped(":jacocoTestReport")
         htmlReport().exists()
         reportResourceDir.exists()
 
@@ -102,7 +104,7 @@ class JacocoPluginIntegrationTest extends AbstractIntegrationSpec {
         succeeds('jacocoTestReport')
 
         then:
-        skippedTasks.contains(":jacocoTestReport")
+        skipped(":jacocoTestReport")
         htmlReport().exists()
         reportResourceDir.exists()
 
@@ -111,38 +113,9 @@ class JacocoPluginIntegrationTest extends AbstractIntegrationSpec {
         succeeds('test', 'jacocoTestReport')
 
         then:
-        !skippedTasks.contains(":jacocoTestReport")
+        executedAndNotSkipped(":jacocoTestReport")
         htmlReport().exists()
         reportResourceDir.exists()
-    }
-
-    def "using append is deprecated"() {
-        buildFile << """
-            test {
-                jacoco {
-                    append = false
-                }
-            }
-        """
-        def deprecationMessage = "The append property has been deprecated. This is scheduled to be removed in Gradle 6.0. Append should always be true."
-
-        when:
-        executer.expectDeprecationWarning()
-        succeeds("help")
-        then:
-        output.contains(deprecationMessage)
-
-        when:
-        buildFile.text = ""
-        javaProjectUnderTest.writeBuildScript()
-        buildFile << """
-            println test.jacoco.append
-        """
-        and:
-        executer.expectDeprecationWarning()
-        succeeds("help")
-        then:
-        output.contains(deprecationMessage)
     }
 
     private JacocoReportFixture htmlReport(String basedir = "${REPORTING_BASE}/jacoco/test/html") {

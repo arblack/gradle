@@ -16,6 +16,7 @@
 
 package org.gradle.internal.jacoco
 
+import org.gradle.api.internal.file.FileOperations
 import org.gradle.api.internal.file.collections.ImmutableFileCollection
 import org.gradle.testfixtures.ProjectBuilder
 import spock.lang.Specification
@@ -23,7 +24,7 @@ import spock.lang.Unroll
 
 class JacocoAgentJarTest extends Specification {
     def project = ProjectBuilder.builder().build()
-    def jacocoAgentJar = new JacocoAgentJar(project)
+    def jacocoAgentJar = new JacocoAgentJar(project.services.get(FileOperations))
 
     @Unroll
     def "versions >= 0.6.2 support jmx #version -> #jmxSupport"() {
@@ -43,6 +44,7 @@ class JacocoAgentJarTest extends Specification {
         '0.7.6.201602180812'  | true
         '0.7.8'               | true
         '0.8.3'               | true
+        '0.8.4'               | true
     }
 
     @Unroll
@@ -63,5 +65,6 @@ class JacocoAgentJarTest extends Specification {
         '0.7.6.201602180812'  | true
         '0.7.8'               | true
         '0.8.3'               | true
+        '0.8.4'               | true
     }
 }

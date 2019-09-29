@@ -62,12 +62,9 @@ class IvyPublishCoordinatesIntegTest extends AbstractIvyPublishIntegTest {
     }
 
     def "can produce multiple separate publications for single project"() {
-        // cannot yet publish Gradle metadata when there's no associated component
-        publishModuleMetadata = false
-
         given:
-        def module = ivyRepo.module('org.custom', 'custom', '2.2')
-        def apiModule = ivyRepo.module('org.custom', 'custom-api', '2')
+        def module = javaLibrary(ivyRepo.module('org.custom', 'custom', '2.2'))
+        def apiModule = ivyRepo.module('org.custom', 'custom-api', '2') // not a full 'IvyJavaModule', cannot yet publish Gradle metadata when there's no associated component
 
         and:
         settingsFile << "rootProject.name = 'root'"
@@ -101,12 +98,13 @@ class IvyPublishCoordinatesIntegTest extends AbstractIvyPublishIntegTest {
                         revision "2"
                         configurations {
                             compile {}
+                            runtime {}
                             "default" {
                                 extend "compile"
                             }
                         }
                         artifact(apiJar) {
-                            conf "compile"
+                            conf "compile,runtime"
                         }
                     }
                 }
@@ -130,8 +128,7 @@ class IvyPublishCoordinatesIntegTest extends AbstractIvyPublishIntegTest {
         and:
         resolveArtifacts(module) {
             withModuleMetadata {
-                // customizing publications is not supported with Gradle metadata
-                noComponentPublished()
+                expectFiles 'custom-2.2.jar'
             }
             withoutModuleMetadata {
                 expectFiles 'custom-2.2.jar'
@@ -148,4 +145,120 @@ class IvyPublishCoordinatesIntegTest extends AbstractIvyPublishIntegTest {
         }
     }
 
+    def "warns when multiple publications share the same coordinates"() {
+        given:
+        settingsFile << "rootProject.name = 'duplicate-publications'"
+        buildFile << """
+            apply plugin: 'ivy-publish'
+            apply plugin: 'java'
+
+            group = 'org.example'
+            version = '1.0'
+
+            task otherJar(type: Jar) {
+                classifier "other"
+            }
+
+            publishing {
+                repositories {
+                    ivy { url "${ivyRepo.uri}" }
+                }
+                publications {
+                    main(IvyPublication) {
+                        from components.java
+                    }
+                    other(IvyPublication) {
+                        artifact(otherJar)
+                    }
+                }
+            }
+        """
+
+        def module = ivyRepo.module('org.example', 'duplicate-publications', '1.0')
+
+        when:
+        succeeds 'publishMainPublicationToIvyRepository'
+
+        then:
+        module.assertPublished()
+
+        when:
+        succeeds 'publish'
+
+        then:
+        outputContains("Multiple publications with coordinates 'org.example:duplicate-publications:1.0' are published to repository 'ivy'. The publications will overwrite each other!")
+    }
+
+    def "warns when publications in different projects share the same coordinates"() {
+        given:
+        settingsFile << """
+include 'projectA'
+include 'projectB'
+"""
+        buildFile << """
+        subprojects {
+            apply plugin: 'ivy-publish'
+            apply plugin: 'java'
+
+            group = 'org.example'
+            version = '1.0'
+
+            publishing {
+                repositories {
+                    ivy { url "${ivyRepo.uri}" }
+                }
+                publications {
+                    main(IvyPublication) {
+                        from components.java
+                        module "duplicate"
+                    }
+                }
+            }
+        }
+        """
+
+        when:
+        succeeds 'publish'
+
+        then:
+        outputContains("Multiple publications with coordinates 'org.example:duplicate:1.0' are published to repository 'ivy'. The publications will overwrite each other!")
+    }
+
+    def "does not fail for publication with duplicate repositories"() {
+        given:
+        settingsFile << "rootProject.name = 'duplicate-repos'"
+        buildFile << """
+            apply plugin: 'ivy-publish'
+            apply plugin: 'java'
+
+            group = 'org.example'
+            version = '1.0'
+
+            publishing {
+                repositories {
+                    ivy { 
+                        name "ivy1"
+                        url "${ivyRepo.uri}" 
+                    }
+                    ivy { 
+                        name "ivy2"
+                        url "${ivyRepo.uri}" 
+                    }
+                }
+                publications {
+                    main(IvyPublication) {
+                        from components.java
+                    }
+                }
+            }
+        """
+
+        def module = ivyRepo.module('org.example', 'duplicate-repos', '1.0')
+
+        when:
+        succeeds 'publish'
+
+        then:
+        module.assertPublished()
+    }
 }

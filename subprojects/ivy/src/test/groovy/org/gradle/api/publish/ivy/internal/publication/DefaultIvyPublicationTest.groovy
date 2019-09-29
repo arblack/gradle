@@ -28,8 +28,8 @@ import org.gradle.api.artifacts.PublishArtifact
 import org.gradle.api.component.ComponentWithVariants
 import org.gradle.api.file.FileCollection
 import org.gradle.api.internal.CollectionCallbackActionDecorator
-import org.gradle.api.internal.FeaturePreviews
 import org.gradle.api.internal.artifacts.DefaultModuleVersionIdentifier
+import org.gradle.api.internal.artifacts.dsl.dependencies.PlatformSupport
 import org.gradle.api.internal.artifacts.ivyservice.projectmodule.ProjectDependencyPublicationResolver
 import org.gradle.api.internal.attributes.ImmutableAttributes
 import org.gradle.api.internal.component.SoftwareComponentInternal
@@ -39,6 +39,7 @@ import org.gradle.api.publish.internal.PublicationInternal
 import org.gradle.api.publish.internal.versionmapping.VersionMappingStrategyInternal
 import org.gradle.api.publish.ivy.IvyArtifact
 import org.gradle.api.tasks.TaskOutputs
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.internal.typeconversion.NotationParser
 import org.gradle.test.fixtures.file.TestNameTestDirectoryProvider
 import org.gradle.util.AttributeTestUtil
@@ -56,7 +57,6 @@ class DefaultIvyPublicationTest extends Specification {
     def notationParser = Mock(NotationParser)
     def projectDependencyResolver = Mock(ProjectDependencyPublicationResolver)
     def attributesFactory = AttributeTestUtil.attributesFactory()
-    def featurePreviews = TestUtil.featurePreviews()
 
     File ivyDescriptorFile
     File moduleDescriptorFile
@@ -109,7 +109,7 @@ class DefaultIvyPublicationTest extends Specification {
         publication.from(componentWithArtifact(artifact))
 
         then:
-        publication.publishableArtifacts.files.files == [ivyDescriptorFile, artifactFile] as Set
+        publication.publishableArtifacts.files.files == [ivyDescriptorFile, moduleDescriptorFile, artifactFile] as Set
         publication.artifacts == [ivyArtifact] as Set
 
         and:
@@ -140,7 +140,7 @@ class DefaultIvyPublicationTest extends Specification {
         publication.from(componentWithDependency(moduleDependency))
 
         then:
-        publication.publishableArtifacts.files.files == [ivyDescriptorFile] as Set
+        publication.publishableArtifacts.files.files == [ivyDescriptorFile, moduleDescriptorFile] as Set
         publication.artifacts.empty
 
         and:
@@ -173,7 +173,7 @@ class DefaultIvyPublicationTest extends Specification {
         publication.from(componentWithDependency(projectDependency))
 
         then:
-        publication.publishableArtifacts.files.files == [ivyDescriptorFile] as Set
+        publication.publishableArtifacts.files.files == [ivyDescriptorFile, moduleDescriptorFile] as Set
         publication.artifacts.empty
 
         and:
@@ -288,9 +288,9 @@ class DefaultIvyPublicationTest extends Specification {
             projectDependencyResolver,
             TestFiles.fileCollectionFactory(),
             attributesFactory,
-            featurePreviews,
             CollectionCallbackActionDecorator.NOOP,
-            Mock(VersionMappingStrategyInternal)
+            Mock(VersionMappingStrategyInternal),
+            Mock(PlatformSupport)
         )
         publication.setIvyDescriptorGenerator(createArtifactGenerator(ivyDescriptorFile))
 
@@ -347,21 +347,13 @@ class DefaultIvyPublicationTest extends Specification {
         publication.publishableArtifacts.files.isEmpty()
     }
 
-    def "Gradle metadata artifact is only added for components without variants if feature preview is enabled"() {
+    def "Gradle metadata artifact added for components without variants"() {
         given:
         def publication = createPublication()
-        if (previewEnabled) {
-            featurePreviews.enableFeature(FeaturePreviews.Feature.GRADLE_METADATA)
-        }
         publication.from(createComponent([], []))
 
         and:
-        publication.publishableArtifacts.files.contains(moduleDescriptorFile) == metadataFileExpected
-
-        where:
-        previewEnabled | metadataFileExpected
-        true           | true
-        false          | false
+        publication.publishableArtifacts.files.contains(moduleDescriptorFile)
     }
 
     def createPublication() {
@@ -374,9 +366,9 @@ class DefaultIvyPublicationTest extends Specification {
             projectDependencyResolver,
             TestFiles.fileCollectionFactory(),
             attributesFactory,
-            featurePreviews,
             CollectionCallbackActionDecorator.NOOP,
-            Mock(VersionMappingStrategyInternal)
+            Mock(VersionMappingStrategyInternal),
+            Mock(PlatformSupport)
         )
         publication.setIvyDescriptorGenerator(createArtifactGenerator(ivyDescriptorFile))
         publication.setModuleDescriptorGenerator(createArtifactGenerator(moduleDescriptorFile))
@@ -384,10 +376,12 @@ class DefaultIvyPublicationTest extends Specification {
     }
 
     def createArtifactGenerator(File file) {
-        return Stub(Task) {
-            getOutputs() >> Stub(TaskOutputs) {
-                getFiles() >> Stub(FileCollection) {
-                    getSingleFile() >> file
+        return Stub(TaskProvider) {
+            get() >> Stub(Task) {
+                getOutputs() >> Stub(TaskOutputs) {
+                    getFiles() >> Stub(FileCollection) {
+                        getSingleFile() >> file
+                    }
                 }
             }
         }

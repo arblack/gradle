@@ -42,10 +42,12 @@ import org.gradle.configuration.project.ProjectConfigurationActionContainer;
 import org.gradle.internal.Describables;
 import org.gradle.jvm.tasks.Jar;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
+import org.gradle.util.DeprecationLogger;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * <p>A  {@link org.gradle.api.Plugin}  which defines a basic project lifecycle and some common convention properties.</p>
@@ -69,6 +71,7 @@ public class BasePlugin implements Plugin<Project> {
         this.moduleIdentifierFactory = moduleIdentifierFactory;
     }
 
+    @Override
     public void apply(final Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
 
@@ -85,17 +88,20 @@ public class BasePlugin implements Plugin<Project> {
 
     private void configureArchiveDefaults(final Project project, final BasePluginConvention pluginConvention) {
         project.getTasks().withType(AbstractArchiveTask.class).configureEach(new Action<AbstractArchiveTask>() {
+            @Override
             public void execute(AbstractArchiveTask task) {
 
                 Callable<String> destinationDir;
                 if (task instanceof Jar) {
                     destinationDir = new Callable<String>() {
+                        @Override
                         public String call() {
                             return pluginConvention.getLibsDirName();
                         }
                     };
                 } else {
                     destinationDir = new Callable<String>() {
+                        @Override
                         public String call() {
                             return pluginConvention.getDistsDirName();
                         }
@@ -104,6 +110,7 @@ public class BasePlugin implements Plugin<Project> {
                 task.getDestinationDirectory().convention(project.getLayout().getBuildDirectory().dir(project.provider(destinationDir)));
 
                 task.getArchiveVersion().convention(project.provider(new Callable<String>() {
+                    @Override
                     @Nullable
                     public String call() {
                         return project.getVersion() == Project.DEFAULT_VERSION ? null : project.getVersion().toString();
@@ -111,6 +118,7 @@ public class BasePlugin implements Plugin<Project> {
                 }));
 
                 task.getArchiveBaseName().convention(project.provider(new Callable<String>() {
+                    @Override
                     public String call() {
                         return pluginConvention.getArchivesBaseName();
                     }
@@ -129,12 +137,16 @@ public class BasePlugin implements Plugin<Project> {
 
     private void configureUploadArchivesTask() {
         configurationActionContainer.add(new Action<ProjectInternal>() {
+            @Override
             public void execute(ProjectInternal project) {
                 Upload uploadArchives = project.getTasks().withType(Upload.class).findByName(UPLOAD_ARCHIVES_TASK_NAME);
                 if (uploadArchives == null) {
                     return;
                 }
-
+                AtomicBoolean usesMaven = new AtomicBoolean();
+                project.getPluginManager().withPlugin("maven", p -> usesMaven.set(true));
+                uploadArchives.doFirst(task -> DeprecationLogger.nagUserOfDeprecated("The " + UPLOAD_ARCHIVES_TASK_NAME + " task",
+                    "Use the " + (usesMaven.get() ? "'maven-publish'" : "'ivy-publish'") + " plugin instead"));
                 boolean hasIvyRepo = !uploadArchives.getRepositories().withType(IvyArtifactRepository.class).isEmpty();
                 if (!hasIvyRepo) {
                     return;
@@ -153,19 +165,21 @@ public class BasePlugin implements Plugin<Project> {
         project.setStatus("integration");
 
         final Configuration archivesConfiguration = configurations.maybeCreate(Dependency.ARCHIVES_CONFIGURATION).
-                setDescription("Configuration for archive artifacts.");
+            setDescription("Configuration for archive artifacts.");
 
         configurations.maybeCreate(Dependency.DEFAULT_CONFIGURATION).
-                setDescription("Configuration for default artifacts.");
+            setDescription("Configuration for default artifacts.");
 
         final DefaultArtifactPublicationSet defaultArtifacts = project.getExtensions().create(
-                "defaultArtifacts", DefaultArtifactPublicationSet.class, archivesConfiguration.getArtifacts()
+            "defaultArtifacts", DefaultArtifactPublicationSet.class, archivesConfiguration.getArtifacts()
         );
 
         configurations.all(new Action<Configuration>() {
+            @Override
             public void execute(final Configuration configuration) {
                 if (!configuration.equals(archivesConfiguration)) {
                     configuration.getArtifacts().configureEach(new Action<PublishArtifact>() {
+                        @Override
                         public void execute(PublishArtifact artifact) {
                             if (configuration.isVisible()) {
                                 defaultArtifacts.addCandidate(artifact);

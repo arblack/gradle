@@ -61,6 +61,7 @@ public class ComponentMetadataDetailsAdapter implements ComponentMetadataDetails
         return metadata.isChanging();
     }
 
+    @Override
     public String getStatus() {
         return metadata.getStatus();
     }
@@ -93,6 +94,18 @@ public class ComponentMetadataDetailsAdapter implements ComponentMetadataDetails
     @Override
     public void allVariants(Action<? super VariantMetadata> action) {
         action.execute(instantiator.newInstance(VariantMetadataAdapter.class, Specs.satisfyAll(), metadata, instantiator, dependencyMetadataNotationParser, dependencyConstraintMetadataNotationParser));
+    }
+
+    @Override
+    public void addVariant(String name, Action<? super VariantMetadata> action) {
+        metadata.getVariantMetadataRules().addVariant(name);
+        withVariant(name, action);
+    }
+
+    @Override
+    public void addVariant(String name, String base, Action<? super VariantMetadata> action) {
+        metadata.getVariantMetadataRules().addVariant(name, base);
+        withVariant(name, action);
     }
 
     @Override

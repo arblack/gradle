@@ -20,6 +20,7 @@ apply(from = "gradle/shared-with-buildSrc/build-cache-configuration.settings.gra
 apply(from = "gradle/shared-with-buildSrc/mirrors.settings.gradle.kts")
 
 include("instantExecution")
+include("instantExecutionReport")
 include("apiMetadata")
 include("distributionsDependencies")
 include("distributions")
@@ -33,6 +34,7 @@ include("dependencyManagement")
 include("wrapper")
 include("cli")
 include("launcher")
+include("bootstrap")
 include("messaging")
 include("resources")
 include("resourcesHttp")
@@ -44,9 +46,7 @@ include("scala")
 include("ide")
 include("ideNative")
 include("idePlay")
-include("osgi")
 include("maven")
-include("announce")
 include("codeQuality")
 include("antlr")
 include("toolingApi")
@@ -63,7 +63,6 @@ include("internalAndroidPerformanceTesting")
 include("performance")
 include("buildScanPerformance")
 include("javascript")
-include("buildComparison")
 include("reporting")
 include("diagnostics")
 include("publish")
@@ -101,7 +100,9 @@ include("persistentCache")
 include("buildCache")
 include("coreApi")
 include("versionControl")
+include("fileCollections")
 include("files")
+include("hashing")
 include("snapshots")
 include("architectureTest")
 include("buildCachePackaging")
@@ -115,6 +116,9 @@ include("kotlinDslToolingModels")
 include("kotlinDslToolingBuilders")
 include("kotlinDslTestFixtures")
 include("kotlinDslIntegTests")
+include("workerProcesses")
+include("pineapple")
+include("samples")
 
 val upperCaseLetters = "\\p{Upper}".toRegex()
 
@@ -127,15 +131,8 @@ rootProject.name = "gradle"
 // The intent is for this list to diminish until it disappears.
 val groovyBuildScriptProjects = hashSetOf(
     "distributions",
-    "wrapper",
     "docs",
-    "performance",
-    "testing-base",
-    "testing-jvm",
-    "testing-junit-platform",
-    "test-kit",
-    "smoke-test",
-    "version-control"
+    "performance"
 )
 
 fun buildFileNameFor(projectDirName: String) =
@@ -163,10 +160,7 @@ pluginManagement {
     }
 }
 
-val ignoredFeatures = setOf(
-    // we don't want to publish Gradle metadata to public repositories until the format is stable.
-    FeaturePreviews.Feature.GRADLE_METADATA
-)
+val ignoredFeatures = setOf<FeaturePreviews.Feature>()
 
 FeaturePreviews.Feature.values().forEach { feature ->
     if (feature.isActive && feature !in ignoredFeatures) {

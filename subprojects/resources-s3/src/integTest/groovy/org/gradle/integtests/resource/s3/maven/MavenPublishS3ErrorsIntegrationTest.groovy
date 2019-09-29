@@ -33,7 +33,6 @@ class MavenPublishS3ErrorsIntegrationTest extends AbstractMavenPublishIntegTest 
     public final S3Server server = new S3Server(temporaryFolder)
 
     def setup() {
-        disableModuleMetadataPublishing()
         executer.withArgument('-i')
         executer.withArgument("-Dorg.gradle.s3.endpoint=${server.uri}")
     }
@@ -70,7 +69,6 @@ class MavenPublishS3ErrorsIntegrationTest extends AbstractMavenPublishIntegTest 
         when:
         def module = mavenS3Repo.module("org.gradle", "publishS3Test", "1.45")
         module.artifact.expectPutAuthenticationError()
-        module.pom.expectPutAuthenticationError()
 
         then:
         fails 'publish'

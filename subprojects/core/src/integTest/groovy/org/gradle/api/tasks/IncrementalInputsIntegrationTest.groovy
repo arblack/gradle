@@ -16,7 +16,7 @@
 
 package org.gradle.api.tasks
 
-import org.gradle.internal.change.ChangeTypeInternal
+import org.gradle.internal.execution.history.changes.ChangeTypeInternal
 import org.gradle.work.Incremental
 import spock.lang.Issue
 import spock.lang.Unroll
@@ -131,6 +131,10 @@ class IncrementalInputsIntegrationTest extends AbstractIncrementalTasksIntegrati
                 @InputFile
                 abstract RegularFileProperty getNonIncrementalInput()
 
+                @Optional
+                @OutputFile
+                abstract RegularFileProperty getOutputFile()
+
                 @Override
                 void execute(InputChanges inputChanges) {
                     inputChanges.getFileChanges(nonIncrementalInput)
@@ -146,7 +150,7 @@ class IncrementalInputsIntegrationTest extends AbstractIncrementalTasksIntegrati
 
         expect:
         fails("withNonIncrementalInput")
-        failure.assertHasCause("Cannot query incremental changes: No property found for value property(interface org.gradle.api.file.RegularFile, fixed(class org.gradle.api.internal.file.DefaultFilePropertyFactory\$FixedFile, ${file( "nonIncremental").absolutePath})). Incremental properties: inputDir.")
+        failure.assertHasCause("Cannot query incremental changes: No property found for value task ':withNonIncrementalInput' property 'nonIncrementalInput'. Incremental properties: inputDir.")
     }
 
     def "changes to non-incremental input parameters cause a rebuild"() {
@@ -156,6 +160,10 @@ class IncrementalInputsIntegrationTest extends AbstractIncrementalTasksIntegrati
 
                 @InputFile
                 File nonIncrementalInput
+
+                @Optional
+                @OutputFile
+                abstract RegularFileProperty getOutputFile()
 
                 @Override
                 void execute(InputChanges changes) {
@@ -379,7 +387,6 @@ class IncrementalInputsIntegrationTest extends AbstractIncrementalTasksIntegrati
         PathSensitivity.NAME_ONLY | [modified: "input1.txt", added: "other-input.txt", removed: "input2.txt"]
     }
 
-    @Unroll
     def "provides the file type"() {
         file("buildSrc").deleteDir()
         buildFile.text = """
@@ -395,8 +402,10 @@ class IncrementalInputsIntegrationTest extends AbstractIncrementalTasksIntegrati
                 @TaskAction
                 void copy(InputChanges changes) {
                     if (!changes.incremental) {
-                        println("Full rebuild - cleaning output directory")
-                        org.gradle.util.GFileUtils.cleanDirectory(outputDirectory.get().asFile)
+                        println("Full rebuild - recreating output directory")
+                        def outputDir = outputDirectory.get().asFile
+                        project.delete(outputDir)
+                        project.mkdir(outputDir)
                     }
                     changes.getFileChanges(inputDirectory).each { change ->
                         File outputFile = new File(outputDirectory.get().asFile, change.normalizedPath)

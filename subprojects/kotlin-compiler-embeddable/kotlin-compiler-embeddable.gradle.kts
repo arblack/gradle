@@ -13,18 +13,16 @@ description = "Kotlin Compiler Embeddable - patched for Gradle"
 base.archivesBaseName = "kotlin-compiler-embeddable-$kotlinVersion-patched-for-gradle"
 
 gradlebuildJava {
-    moduleType = ModuleType.INTERNAL
+    moduleType = ModuleType.CORE
 }
 
 dependencies {
+    api(futureKotlin("stdlib"))
+    api(futureKotlin("reflect"))
+    api(futureKotlin("script-runtime"))
+    api(futureKotlin("daemon-embeddable"))
 
-    api(project(":distributionsDependencies"))
-
-    compile(futureKotlin("stdlib"))
-    compile(futureKotlin("reflect"))
-    compile(futureKotlin("script-runtime"))
-
-    runtime("org.jetbrains.intellij.deps:trove4j:1.0.20181211")
+    runtimeOnly(library("trove4j"))
 }
 
 val kotlinCompilerEmbeddable by configurations.creating

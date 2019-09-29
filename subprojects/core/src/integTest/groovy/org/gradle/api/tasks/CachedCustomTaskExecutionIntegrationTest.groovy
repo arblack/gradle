@@ -43,7 +43,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "tasks"
         then:
-        skippedTasks.empty
+        result.assertTaskNotSkipped(":buildSrc:compileGroovy")
         listCacheFiles().size() == 1 // compileGroovy
 
         expect:
@@ -52,7 +52,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "tasks"
         then:
-        output.contains ":buildSrc:compileGroovy FROM-CACHE"
+        result.groupedOutput.task(":buildSrc:compileGroovy").outcome == "FROM-CACHE"
     }
 
     def "tasks stay cached after buildSrc with custom Groovy task is rebuilt"() {
@@ -68,7 +68,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "customTask"
         then:
-        skippedTasks.empty
+        result.assertTaskNotSkipped(":customTask")
 
         when:
         file("buildSrc/build").deleteDir()
@@ -77,10 +77,10 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
 
         withBuildCache().run "customTask"
         then:
-        skippedTasks.contains ":customTask"
+        result.groupedOutput.task(":customTask").outcome == "FROM-CACHE"
     }
 
-    def "changing custom Groovy task implementation in buildSrc doesn't invalidate built-in task"() {
+    def "changing custom Groovy task implementation in buildSrc invalidates its cached result"() {
         configureCacheForBuildSrc()
         def taskSourceFile = file("buildSrc/src/main/groovy/CustomTask.groovy")
         taskSourceFile << customGroovyTask()
@@ -94,7 +94,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "customTask"
         then:
-        skippedTasks.empty
+        result.assertTaskNotSkipped(":customTask")
         file("build/output.txt").text == "input"
 
         when:
@@ -103,7 +103,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         cleanBuildDir()
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        result.assertTaskNotSkipped(":customTask")
         file("build/output.txt").text == "input modified"
     }
 
@@ -114,9 +114,15 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
 
             @CacheableTask
             class CustomTask extends DefaultTask {
-                @InputFile File inputFile
-                @OutputFile File outputFile
-                @TaskAction void doSomething() {
+                @InputFile
+                @PathSensitive(PathSensitivity.NONE)
+                File inputFile
+
+                @OutputFile
+                File outputFile
+
+                @TaskAction
+                void doSomething() {
                     outputFile.text = inputFile.text + "$suffix"
                 }
             }
@@ -126,19 +132,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
     def "cacheable task with cache disabled doesn't get cached"() {
         configureCacheForBuildSrc()
         file("input.txt") << "data"
-        file("buildSrc/src/main/groovy/CustomTask.groovy") << """
-            import org.gradle.api.*
-            import org.gradle.api.tasks.*
-
-            @CacheableTask
-            class CustomTask extends DefaultTask {
-                @InputFile File inputFile
-                @OutputFile File outputFile
-                @TaskAction void doSomething() {
-                    outputFile.text = inputFile.text
-                }
-            }
-        """
+        file("buildSrc/src/main/groovy/CustomTask.groovy") << customGroovyTask()
         buildFile << """
             task customTask(type: CustomTask) {
                 inputFile = file("input.txt")
@@ -149,13 +143,13 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
 
         when:
         cleanBuildDir()
         withBuildCache().run "customTask"
         then:
-        skippedTasks.contains ":customTask"
+        skipped ":customTask"
 
 
         when:
@@ -169,7 +163,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         withBuildCache().run "customTask"
 
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
     }
 
     def "cacheable task with multiple outputs declared via runtime API with matching cardinality get cached"() {
@@ -187,13 +181,13 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
 
         when:
         cleanBuildDir()
         withBuildCache().run "customTask"
         then:
-        skippedTasks.contains ":customTask"
+        skipped ":customTask"
     }
 
     def "cacheable task with multiple output properties with matching cardinality get cached"() {
@@ -218,13 +212,13 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
 
         when:
         cleanBuildDir()
         withBuildCache().run "customTask"
         then:
-        skippedTasks.contains ":customTask"
+        skipped ":customTask"
         file("build/output1.txt").text == "data1"
         file("build/output2.txt").text == "data2"
     }
@@ -253,13 +247,13 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
 
         when:
         cleanBuildDir()
         withBuildCache().run "customTask", "-PchangedCardinality"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
     }
 
     def "non-cacheable task with cache enabled gets cached"() {
@@ -284,13 +278,13 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
 
         when:
         cleanBuildDir()
         withBuildCache().run "customTask"
         then:
-        skippedTasks.contains ":customTask"
+        skipped ":customTask"
     }
 
     def "ad hoc tasks are not cacheable by default"() {
@@ -335,10 +329,19 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
 
             @CacheableTask
             class CustomTask extends DefaultTask {
-                @InputFile File inputFile
-                @OutputFile File outputFile
-                @Optional @OutputFile File secondaryOutputFile
-                @TaskAction void doSomething() {
+                @InputFile
+                @PathSensitive(PathSensitivity.NONE)
+                File inputFile
+
+                @OutputFile
+                File outputFile
+
+                @Optional
+                @OutputFile
+                File secondaryOutputFile
+
+                @TaskAction
+                void doSomething() {
                     outputFile.text = inputFile.text
                     if (secondaryOutputFile != null) {
                         secondaryOutputFile.text = "secondary"
@@ -357,7 +360,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
         file("build/output.txt").text == "data"
         file("build/secondary.txt").text == "secondary"
         file("build").listFiles().sort() as List == [file("build/output.txt"), file("build/secondary.txt")]
@@ -366,7 +369,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         cleanBuildDir()
         withBuildCache().run "customTask"
         then:
-        skippedTasks.contains ":customTask"
+        skipped ":customTask"
         file("build/output.txt").text == "data"
         file("build/secondary.txt").text == "secondary"
         file("build").listFiles().sort() as List == [file("build/output.txt"), file("build/secondary.txt")]
@@ -378,7 +381,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         """
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
         file("build/output.txt").text == "data"
         file("build").listFiles().sort() as List == [file("build/output.txt")]
 
@@ -386,7 +389,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         cleanBuildDir()
         withBuildCache().run "customTask"
         then:
-        skippedTasks.contains ":customTask"
+        skipped ":customTask"
         file("build/output.txt").text == "data"
         file("build").listFiles().sort() as List == [file("build/output.txt")]
     }
@@ -400,9 +403,15 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
 
             @CacheableTask
             class CustomTask extends DefaultTask {
-                @InputFile File inputFile
-                @OutputFiles Map<String, File> outputFiles
-                @TaskAction void doSomething() {
+                @InputFile
+                @PathSensitive(PathSensitivity.NONE)
+                File inputFile
+
+                @OutputFiles
+                Map<String, File> outputFiles
+
+                @TaskAction
+                void doSomething() {
                     outputFiles.each { String key, File outputFile ->
                         outputFile.text = key
                     }
@@ -422,7 +431,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
         file("build/output-1.txt").text == "one"
         file("build/output-2.txt").text == "two"
         file("build").listFiles().sort() as List == [file("build/output-1.txt"), file("build/output-2.txt")]
@@ -437,7 +446,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         """
         withBuildCache().run "customTask"
         then:
-        skippedTasks.contains ":customTask"
+        skipped ":customTask"
         file("build/output-a.txt").text == "one"
         file("build/output-b.txt").text == "two"
         file("build").listFiles().sort() as List == [file("build/output-a.txt"), file("build/output-b.txt")]
@@ -452,7 +461,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         """
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
         file("build/output-a.txt").text == "first"
         file("build/output-b.txt").text == "second"
         file("build").listFiles().sort() as List == [file("build/output-a.txt"), file("build/output-b.txt")]
@@ -479,7 +488,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
         file("build/output.txt").text == "data"
         file("build/output").assertIsDir()
         file("build/output/missing").assertDoesNotExist()
@@ -488,7 +497,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         cleanBuildDir()
         withBuildCache().run "customTask"
         then:
-        skippedTasks.contains ":customTask"
+        skipped ":customTask"
         file("build/output.txt").text == "data"
         file("build/output").assertIsDir()
         file("build/output/missing").assertDoesNotExist()
@@ -505,11 +514,16 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         buildFile << """
             @CacheableTask
             class CustomTask extends DefaultTask {
-                @InputFile File inputFile = project.file("input.txt")
-                
-                @${type} File missing = project.file("build/output/missing")
-                @OutputFile File output = project.file("build/output.txt")
-                
+                @InputFile
+                @PathSensitive(PathSensitivity.NONE)
+                File inputFile = project.file("input.txt")
+
+                @${type}
+                File missing = project.file("build/output/missing")
+
+                @OutputFile
+                File output = project.file("build/output.txt")
+
                 @TaskAction void doSomething() {
                     output.text = inputFile.text
                     project.delete(missing)
@@ -523,7 +537,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         // creates the directory, but not the output file
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
         file("build/output.txt").text == "data"
         file("build/output").assertIsDir()
         file("build/output/missing").assertDoesNotExist()
@@ -532,7 +546,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         cleanBuildDir()
         withBuildCache().run "customTask"
         then:
-        skippedTasks.contains ":customTask"
+        skipped ":customTask"
         file("build/output.txt").text == "data"
         file("build/output").assertIsDir()
         file("build/output/missing").assertDoesNotExist()
@@ -556,14 +570,14 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         when:
         withBuildCache().run "customTask"
         then:
-        nonSkippedTasks.contains ":customTask"
+        executedAndNotSkipped ":customTask"
         file("build/empty").assertIsEmptyDir()
 
         when:
         cleanBuildDir()
         withBuildCache().run "customTask"
         then:
-        skippedTasks.contains ":customTask"
+        skipped ":customTask"
         file("build/empty").assertIsEmptyDir()
     }
 
@@ -579,8 +593,8 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
                 doLast {
                     delete('build')
                     ${
-                        actual == "file" ?
-                            "mkdir('build'); file('build/output').text = file('input.txt').text"
+                        actual == "file"
+                            ? "mkdir('build'); file('build/output').text = file('input.txt').text"
                             : "mkdir('build/output'); file('build/output/output.txt').text = file('input.txt').text"
                     }
                 }
@@ -588,11 +602,11 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         """
 
         when:
-        executer.withStackTraceChecksDisabled()
-        withBuildCache().run "customTask"
+        withBuildCache().fails "customTask"
         then:
+        failureHasCause("Failed to store cache entry for task ':customTask'")
         def expectedMessage = message.replace("PATH", file("build/output").path)
-        output.contains "Could not pack tree 'output': $expectedMessage"
+        errorOutput.contains "Could not pack tree 'output': $expectedMessage"
 
         where:
         expected | actual | message
@@ -609,17 +623,23 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
 
                 @CacheableTask
                 class CustomTask extends DefaultTask {
-                    @InputFile File input
-                    @OutputFile File output
-                    @TaskAction action() {
-                        output.text = input.text
+                    @InputFile
+                    @PathSensitive(PathSensitivity.NONE)
+                    File inputFile
+    
+                    @OutputFile
+                    File outputFile
+    
+                    @TaskAction
+                    void action() {
+                        outputFile.text = inputFile.text
                     }
                 }
             '''
 
             task customTask(type: CustomTask) {
-                input = file("input.txt")
-                output = file("build/output.txt")
+                inputFile = file("input.txt")
+                outputFile = file("build/output.txt")
             }
         """
 
@@ -639,10 +659,16 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
 
             @CacheableTask
             class CustomTask extends DefaultTask {
-                @InputFile File input
-                @OutputFile File output
-                @TaskAction action() {
-                    output.text = input.text
+                @InputFile
+                @PathSensitive(PathSensitivity.NONE)
+                File inputFile
+
+                @OutputFile
+                File outputFile
+
+                @TaskAction
+                void action() {
+                    outputFile.text = inputFile.text
                 }
             }
 
@@ -661,8 +687,8 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
             '''
 
             task customTask(type: CustomTask) {
-                input = file("input.txt")
-                output = file("build/output.txt")
+                inputFile = file("input.txt")
+                outputFile = file("build/output.txt")
                 doFirst(CustomTaskAction.create())
             }
         """
@@ -684,13 +710,13 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         cleanBuildDir()
         withBuildCache().run "producer"
         then:
-        skippedTasks as List == [":producer"]
+        skipped":producer"
 
         when:
         withBuildCache().run "producer", "--info"
         !output.contains("Caching disabled for task ':producer'")
         then:
-        skippedTasks as List == [":producer"]
+        skipped":producer"
     }
 
     def "task can be cached after loaded from cache"() {
@@ -716,7 +742,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
         cleanBuildDir()
         withBuildCache().run "producer"
         then:
-        skippedTasks as List == [":producer"]
+        skipped":producer"
     }
 
     def "re-ran task is not loaded from cache"() {
@@ -888,7 +914,7 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
 
             @CacheableTask
             class ProducerTask extends DefaultTask {
-                @InputFile File input
+                @InputFile @PathSensitive(PathSensitivity.NONE) File input
                 @Optional @OutputFile nullFile
                 @Optional @OutputDirectory nullDir
                 @OutputFile File missingFile
@@ -926,10 +952,10 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
 
             @CacheableTask
             class ConsumerTask extends DefaultTask {
-                @InputFile File regularFile
-                @InputDirectory File emptyDir
-                @InputDirectory File singleFileInDir
-                @InputDirectory File manyFilesInDir
+                @InputFile @PathSensitive(PathSensitivity.NONE) File regularFile
+                @InputDirectory @PathSensitive(PathSensitivity.NONE) File emptyDir
+                @InputDirectory @PathSensitive(PathSensitivity.NONE) File singleFileInDir
+                @InputDirectory @PathSensitive(PathSensitivity.NONE) File manyFilesInDir
                 @OutputFile File output
                 @TaskAction action() {
                     output.text = "output"
@@ -960,19 +986,19 @@ class CachedCustomTaskExecutionIntegrationTest extends AbstractIntegrationSpec i
 
     void taskIsNotCached(String task) {
         withBuildCache().run task
-        assert nonSkippedTasks.contains(task)
+        executedAndNotSkipped(task)
         cleanBuildDir()
 
         withBuildCache().run task
-        assert nonSkippedTasks.contains(task)
+        executedAndNotSkipped(task)
     }
 
     void taskIsCached(String task) {
         withBuildCache().run task
-        assert nonSkippedTasks.contains(task)
+        executedAndNotSkipped(task)
         cleanBuildDir()
 
         withBuildCache().run task
-        assert skippedTasks.contains(task)
+        skipped(task)
     }
 }

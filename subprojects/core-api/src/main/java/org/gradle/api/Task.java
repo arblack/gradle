@@ -113,7 +113,10 @@ import java.util.Set;
  * <li>A {@code Callable}. The {@code call()} method may return any of the types listed here. Its return value is
  * recursively converted to tasks. A {@code null} return value is treated as an empty collection.</li>
  *
- * <li>Anything else is treated as a failure.</li>
+ * <li>A Groovy {@code Closure} or Kotlin function. The closure or function may return any of the types listed here. Its return value is
+ * recursively converted to tasks. A {@code null} return value is treated as an empty collection.</li>
+ *
+ * <li>Anything else is treated as an error.</li>
  *
  * </ul>
  *
@@ -174,7 +177,6 @@ public interface Task extends Comparable<Task>, ExtensionAware {
      *
      * @since 4.7
      */
-    @Incubating
     String TASK_CONSTRUCTOR_ARGS = "constructorArgs";
 
     /**
@@ -189,6 +191,7 @@ public interface Task extends Comparable<Task>, ExtensionAware {
      * A {@link org.gradle.api.Namer} namer for tasks that returns {@link #getName()}.
      */
     class Namer implements org.gradle.api.Namer<Task> {
+        @Override
         public String determineName(Task c) {
             return c.getName();
         }
@@ -365,7 +368,6 @@ public interface Task extends Comparable<Task>, ExtensionAware {
      *
      * @since 4.2
      */
-    @Incubating
     Task doFirst(String actionName, Action<? super Task> action);
 
     /**
@@ -385,7 +387,6 @@ public interface Task extends Comparable<Task>, ExtensionAware {
      *
      * @since 4.2
      */
-    @Incubating
     Task doLast(String actionName, Action<? super Task> action);
 
     /**

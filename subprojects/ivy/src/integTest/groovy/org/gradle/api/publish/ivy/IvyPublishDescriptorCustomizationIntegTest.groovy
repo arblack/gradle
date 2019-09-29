@@ -16,13 +16,10 @@
 
 package org.gradle.api.publish.ivy
 
-import org.gradle.integtests.fixtures.FeaturePreviewsFixture
-import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
-import spock.lang.IgnoreIf
+import org.gradle.test.fixtures.ivy.IvyDescriptor
 import spock.lang.Unroll
 
 import javax.xml.namespace.QName
-import org.gradle.test.fixtures.ivy.IvyDescriptor
 
 class IvyPublishDescriptorCustomizationIntegTest extends AbstractIvyPublishIntegTest {
 
@@ -53,13 +50,12 @@ class IvyPublishDescriptorCustomizationIntegTest extends AbstractIvyPublishInteg
         """
     }
 
-    @IgnoreIf({GradleContextualExecuter.parallel})
     def "can customize descriptor xml during publication"() {
         when:
         succeeds 'publish'
 
         then:
-        ":jar" in executedTasks
+        executed(":jar")
 
         and:
         module.parsedIvy.revision == "2"
@@ -97,7 +93,7 @@ class IvyPublishDescriptorCustomizationIntegTest extends AbstractIvyPublishInteg
         succeeds 'publish'
 
         then:
-        ":jar" in skippedTasks
+        skipped(":jar")
 
         and:
         with (module.parsedIvy) {
@@ -135,7 +131,7 @@ class IvyPublishDescriptorCustomizationIntegTest extends AbstractIvyPublishInteg
         then:
         file('generated-ivy.xml').assertIsFile()
         IvyDescriptor ivy = new IvyDescriptor(file('generated-ivy.xml'))
-        ivy.expectArtifact(moduleName).hasAttributes("jar", "jar", ["compile"])
+        ivy.expectArtifact(moduleName).hasAttributes("jar", "jar", ["compile", "runtime"])
         module.ivyFile.assertDoesNotExist()
     }
 
@@ -242,7 +238,6 @@ class IvyPublishDescriptorCustomizationIntegTest extends AbstractIvyPublishInteg
     }
 
     def "withXml should not loose Gradle metadata marker"() {
-        FeaturePreviewsFixture.enableGradleMetadata(settingsFile)
         buildFile << """
             publishing {
                 repositories {

@@ -29,7 +29,7 @@ Provides support for building a Java library.
 Provides support for building a Java platform.
 
 <<groovy_plugin.adoc#,Groovy>>::
-Provides support for building any type of http://groovy-lang.org/[Groovy] project.
+Provides support for building any type of https://groovy-lang.org/[Groovy] project.
 
 <<scala_plugin.adoc#,Scala>>::
 Provides support for building any type of https://www.scala-lang.org/[Scala] project.
@@ -40,10 +40,8 @@ Provides support for building, testing and running https://www.playframework.com
 <<antlr_plugin.adoc#,ANTLR>>::
 Provides support for generating parsers using http://www.antlr.org/[ANTLR].
 
+[[native_languages]]
 == Native languages
-
-<<cpp_plugins.adoc#,C++>>::
-Provides support for building C++ libraries and applications on Windows, Linux, and macOS.
 
 <<cpp_application_plugin.adoc#,C++ Application>>::
 Provides support for building C++ applications on Windows, Linux, and macOS.
@@ -53,6 +51,15 @@ Provides support for building C++ libraries on Windows, Linux, and macOS.
 
 <<cpp_unit_test_plugin.adoc#,C++ Unit Test>>::
 Provides support for building and running C++ executable-based tests on Windows, Linux, and macOS.
+
+<<swift_application_plugin.adoc#,Swift Application>>::
+Provides support for building Swift applications on Linux and macOS.
+
+<<swift_library_plugin.adoc#,Swift Library>>::
+Provides support for building Swift libraries on Linux and macOS.
+
+<<xctest_plugin.adoc#,XCTest>>::
+Provides support for building and running XCTest-based tests on Linux and macOS.
 
 == Packaging and distribution
 
@@ -65,14 +72,11 @@ Provides support for building and packaging WAR-based Java web applications.
 <<ear_plugin.adoc#,EAR>>::
 Provides support for building and packaging Java EE applications.
 
-<<osgi_plugin.adoc#,OSGi>>::
-Provides support for creating https://www.osgi.org/[OSGi] packages.
-
 <<publishing_maven.adoc#,Maven Publish>>::
-Provides support for <<publishing_overview.adoc#,publishing artifacts>> to Maven-compatible repositories.
+Provides support for <<publishing.adoc#,publishing artifacts>> to Maven-compatible repositories.
 
 <<publishing_ivy.adoc#,Ivy Publish>>::
-Provides support for <<publishing_overview.adoc#,publishing artifacts>> to Ivy-compatible repositories.
+Provides support for <<publishing.adoc#,publishing artifacts>> to Ivy-compatible repositories.
 
 <<maven_plugin.adoc#,Legacy Maven Plugin>>::
 Provides support for publishing artifacts using the <<artifact_management.adoc#,legacy mechanism>> to Maven-compatible repositories.
@@ -88,14 +92,8 @@ Provides support for creating a ZIP distribution of a Java library project that 
 <<checkstyle_plugin.adoc#,Checkstyle>>::
 Performs quality checks on your project’s Java source files using http://checkstyle.sourceforge.net/index.html[Checkstyle] and generates associated reports.
 
-<<findbugs_plugin.adoc#,FindBugs>>::
-Performs quality checks on your project’s Java source files using http://findbugs.sourceforge.net/[FindBugs] and generates associated reports.
-
 <<pmd_plugin.adoc#,PMD>>::
 Performs quality checks on your project’s Java source files using http://pmd.github.io/[PMD] and generates associated reports.
-
-<<jdepend_plugin.adoc#,JDepend>>::
-Performs quality checks on your project’s Java source files using http://clarkware.com/software/JDepend.html[JDepend] and generates associated reports.
 
 <<jacoco_plugin.adoc#,JaCoCo>>::
 Provides code coverage metrics for your Java project using http://www.eclemma.org/jacoco/[JaCoCo].
